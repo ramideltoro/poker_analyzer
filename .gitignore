@@ -1,0 +1,10 @@
+.build
+dist/
+.DS_Store
+*.xcuserstate
+.swiftpm/
+.env
+.env.*
+!.env.example
+*.log
+*.jsonl
