@@ -14,3 +14,10 @@ cards and intervening felt; balances, bets, accounts and the browser are
 excluded. Normalized silhouettes of only the spade, club and heart symbols
 from that supplied artwork are embedded in CardArtworkTemplates.swift.
 Those references contain no card ranks or complete card/table images.
+
+diamond-hand.png is a crop of the supplied 7:20:45 PM screenshot. It contains
+only the 6-spades/4-spades/Q-spades board, 9-diamonds/5-diamonds hole cards
+and intervening felt. It excludes balances, bets, accounts and the browser.
+The diamond silhouette from that artwork completes the four suit references
+in CardArtworkTemplates.swift. The private full image can be replayed via
+CARD_READER_DIAMOND_FIXTURE; it is not included in the repository or app.

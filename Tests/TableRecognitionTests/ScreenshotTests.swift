@@ -3,6 +3,42 @@ import AppKit
 import TableRecognition
 
 final class ScreenshotTests: XCTestCase {
+    func testSuppliedDiamondArtworkCropWithoutAccountData() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource:"diamond-hand",withExtension:"png",subdirectory:"Fixtures"))
+        let image = try XCTUnwrap(NSImage(contentsOf:url)?.cgImage(forProposedRect:nil,context:nil,hints:nil))
+        let scan = try AutomaticCardDetector().scan(image)
+        let selected = CardGrouping.select(scan.cards)
+        XCTAssertEqual(selected.hole.map { $0.card.code },["9d","5d"],"\(scan.cards) \(scan.diagnostics.fields)")
+        XCTAssertEqual(selected.board.map { $0.card.code },["6s","4s","Qs"])
+        var reader = ReadingStabilizer()
+        XCTAssertNil(reader.accept(scan).0)
+        XCTAssertEqual(reader.accept(scan).0?.hole.map { $0.card.code },["9d","5d"])
+        XCTAssertNil(reader.accept(CardScan(cards:[])).0)
+        XCTAssertEqual(reader.searchRegions.count,5)
+        XCTAssertNil(reader.accept(scan).0)
+        XCTAssertEqual(reader.accept(scan).0?.board.map { $0.card.code },["6s","4s","Qs"])
+    }
+    func testDiamondHandScreenshotWhenProvided() throws {
+        guard let path = ProcessInfo.processInfo.environment["CARD_READER_DIAMOND_FIXTURE"] else { throw XCTSkip("Provide the diamond-hand screenshot for private replay.") }
+        let image = try XCTUnwrap(NSImage(contentsOfFile:path)?.cgImage(forProposedRect:nil,context:nil,hints:nil))
+        let scan = try AutomaticCardDetector().scan(image)
+        let selected = CardGrouping.select(scan.cards)
+        XCTAssertEqual(selected.hole.map { $0.card.code },["9d","5d"],"\(scan.cards) \(scan.diagnostics.fields) \(selected.issue ?? "")")
+        XCTAssertEqual(selected.board.map { $0.card.code },["6s","4s","Qs"])
+        for (width,height) in [(3840,2160),(2560,1440),(1920,1080)] {
+            for offset in [0,1,7] {
+                let context = try XCTUnwrap(CGContext(data:nil,width:width,height:height,bitsPerComponent:8,bytesPerRow:0,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue))
+                context.setFillColor(CGColor(gray:0.1,alpha:1)); context.fill(CGRect(x:0,y:0,width:width,height:height))
+                context.interpolationQuality = .high
+                context.draw(image,in:CGRect(x:offset,y:offset,width:width,height:height))
+                let frame = try XCTUnwrap(context.makeImage())
+                let resized = try AutomaticCardDetector().scan(frame)
+                let selection = CardGrouping.select(resized.cards)
+                XCTAssertEqual(selection.hole.map { $0.card.code },["9d","5d"],"\(width)x\(height) offset=\(offset) \(resized.cards) \(resized.diagnostics.fields)")
+                XCTAssertEqual(selection.board.map { $0.card.code },["6s","4s","Qs"],"\(width)x\(height) offset=\(offset)")
+            }
+        }
+    }
     func testSuppliedFlopArtworkCropWithoutAccountData() throws {
         let url = try XCTUnwrap(Bundle.module.url(forResource:"flop-and-hand",withExtension:"png",subdirectory:"Fixtures"))
         let image = try XCTUnwrap(NSImage(contentsOf:url)?.cgImage(forProposedRect:nil,context:nil,hints:nil))

@@ -1,4 +1,14 @@
-# Live Card Reader 0.5.0 verification
+# Live Card Reader 0.5.1 verification
+
+## Third screenshot: rejected diamonds
+
+The supplied 7:20:45 PM screenshot reproduces the blank hand in the unchanged v0.5.0 detector. It accepts the board's 6-spades/4-spades/Q-spades but rejects both hole cards at the suit stage. The native 9-diamonds candidate's suit score is about 0.8953 with a 0.0057 margin; 5-diamonds is about 0.8967 with a 0.0094 margin. Both margins fall below the required 0.035. With no accepted two-card pair, grouping suppresses the hand and board. The latest v0.5.0 metadata log separately confirms 223 processed scans before an explicit Stop; it does not indicate an automatic stop after a fold.
+
+Version 0.5.1 adds only the normalized diamond silhouette from that supplied artwork to the existing suit library. All four actual-artwork suits are now represented. Score and margin thresholds, scanning cadence and two-frame confirmation rules are unchanged. No screen coordinates or hand values are hardcoded in production recognition.
+
+The full screenshot now selects 9-diamonds/5-diamonds and exactly 6-spades/4-spades/Q-spades, ignoring header previews and sidebar history. Native replay and nine resized/shifted variants (3840×2160, 2560×1440, 1920×1080; offsets 0, 1, 7) pass. A permanent card-and-felt crop excludes balances, betting controls, account data and browser chrome. Its test verifies confirmation, immediate clearing on an empty observation, retained positions and reacquisition after a fold. The full image remains in private work files, outside source/app archives.
+
+The v0.5.1 optimized suite schedules 47 cases: 45 passed, two optional old original full-screenshot cases skipped, zero failures (about 4.79 seconds). Both available full screenshots, all three packaged crops, all 52 generated rank/suit combinations, continuous-hand tracking, equity/EV and capture-cache tests pass. The app is built and ad-hoc signature verified. This confirms the supplied failing image, not all live-site glyphs or layouts.
 
 ## Equity and manual-input call EV
 
@@ -58,7 +68,7 @@ The existing bundle is ad-hoc signed, with a designated requirement tied to its 
 
 ## Checks
 
-- The current suite contains 45 cases: three card-ranking cases, six equity/EV cases, twelve automatic-recognition/grouping cases, five screenshot cases, five app-model cases, four analysis-model cases, five exclusion/diagnostic-stage cases, two logging cases and three stream-cache cases. The latest result is 43 passed and two optional original full-image cases skipped. Cases cover 20 consecutive hands separated by folds/empty frames, recovery after stale input, retained seat geometry with distracting duplicate sidebar pairs, reading changed cards from hint regions, blank-frame rejection and reader-window exclusions on hinted regions, plus the equity/EV cases above.
+- The current suite contains 47 cases: three card-ranking cases, six equity/EV cases, twelve automatic-recognition/grouping cases, seven screenshot cases, five app-model cases, four analysis-model cases, five exclusion/diagnostic-stage cases, two logging cases and three stream-cache cases. The latest result is 45 passed and two optional original full-image cases skipped. Cases cover 20 consecutive hands separated by folds/empty frames, recovery after stale input, retained seat geometry with distracting duplicate sidebar pairs, reading changed cards from hint regions, blank-frame rejection and reader-window exclusions on hinted regions, plus the equity/EV cases above.
 - The earlier v0.4.4 full screenshot replay selected Q-clubs/5-clubs, rejected the sidebar as a live board, confirmed after two observations and cleared when cards disappeared. Its packaged crop still passes at four render scales (0.5, 0.75, 1.0 and 1.25 in the test canvas). The new screenshot/crop checks are described above. Fixture timings are not measured live capture-to-dashboard latency guarantees.
 - Regression checks verify that full Safari occlusion leaves no reader exclusion, partial occlusion excludes only the visible remainder, off-Space reader windows contribute nothing, transparent overlays do not invent occlusion, and repeated previous-frame rectangles do not inflate coverage.
 - The detector still passes all 52 rank/suit combinations on generated conventional card faces. A five-card scene and moved/resized pairs are recognized without supplied coordinates. Empty/ambiguous/duplicate/old observations remain suppressed.
@@ -68,6 +78,6 @@ The existing bundle is ad-hoc signed, with a designated requirement tied to its 
 
 The v0.4.1 metadata establishes the permission-loop failure described above; the subsequent supplied v0.4.2 log confirms continuous screen delivery and scanning after the fix. The earlier occlusion defect was a code-level finding and tested fix, not the cause shown by those logs.
 
-The supplied screenshot cases validate those specific pictured hands and board. Other actual-site ranks, diamond artwork, animations and layouts are unverified; no 99% recognition claim is established. The new app's entire live capture-to-dashboard flow is not exercised through tools. Generated fixtures and screenshot replay establish tested cases rather than general real-table accuracy. The detector assumes light faces at comparable scales and a single two-card row below a possible board; unusual fonts, overlapping/tilted/very small cards and multiple tables can be rejected. Miniature filtering is relative to visible face sizes and does not semantically identify a live table.
+The supplied screenshot cases validate those specific pictured hands and boards, including all four suit artworks. Other actual-site ranks, animations and layouts are unverified; no 99% recognition claim is established. The new app's entire live capture-to-dashboard flow is not exercised through tools. Generated fixtures and screenshot replay establish tested cases rather than general real-table accuracy. The detector assumes light faces at comparable scales and a single two-card row below a possible board; unusual fonts, overlapping/tilted/very small cards and multiple tables can be rejected. Miniature filtering is relative to visible face sizes and does not semantically identify a live table.
 
 Only screenshots explicitly supplied by the user and generated fixtures are inspected. No live Bovada browser, monitor or reader capture is opened through tools. The Computer Use restriction remains respected. No wagering is used for testing.
