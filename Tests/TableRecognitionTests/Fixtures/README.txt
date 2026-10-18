@@ -21,3 +21,10 @@ and intervening felt. It excludes balances, bets, accounts and the browser.
 The diamond silhouette from that artwork completes the four suit references
 in CardArtworkTemplates.swift. The private full image can be replayed via
 CARD_READER_DIAMOND_FIXTURE; it is not included in the repository or app.
+
+table-diamonds.png and table-flop.png are table-only crops of the same two
+user-supplied screenshots. They add the occupied seat panels, pot and wager
+controls needed to test automatic amount/activity recognition. They contain
+anonymous in-game stack amounts and seat markers; browser chrome, account
+balances, sidebar history and other account information are excluded.
+These are test resources, not runtime assets; the app never saves frames.

@@ -18,7 +18,8 @@ public struct CardScan: Sendable {
     public var seconds: Double
     public var rectangles: Int
     public var diagnostics: ScanDiagnostics
-    public init(cards: [DetectedCard],timestamp: Date = Date(),seconds: Double = 0,rectangles: Int = 0,diagnostics: ScanDiagnostics = ScanDiagnostics()) { self.cards = cards; self.timestamp = timestamp; self.seconds = seconds; self.rectangles = rectangles; self.diagnostics = diagnostics }
+    public var table: TableObservation?
+    public init(cards: [DetectedCard],timestamp: Date = Date(),seconds: Double = 0,rectangles: Int = 0,diagnostics: ScanDiagnostics = ScanDiagnostics(),table: TableObservation? = nil) { self.cards = cards; self.timestamp = timestamp; self.seconds = seconds; self.rectangles = rectangles; self.diagnostics = diagnostics; self.table = table }
 }
 
 /// Immutable shared CIContext; every Vision request and working buffer is local to scan().

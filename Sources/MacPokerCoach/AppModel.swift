@@ -21,6 +21,7 @@ import TableRecognition
     private var pending: (CGImage,Date,[UnitRect])?
     private var watchdog: Timer?
     private let detector = AutomaticCardDetector()
+    private let tableDetector = TableStateDetector()
     private let queue = DispatchQueue(label:"handreader.detection",qos:.userInitiated)
     init(log: DiagnosticLog = .shared) {
         self.log = log; capture = CaptureController(log:log)
@@ -55,10 +56,17 @@ import TableRecognition
     private func receive(_ image: CGImage,time: Date,excluded: [UnitRect]) {
         receivedFrames += 1
         if busy { pending = (image,time,excluded); log.write("analysis_latest_frame_queued",["received_frames":"\(receivedFrames)"]); return }
-        busy = true; let token = generation, detector = detector, hints = stabilizer.searchRegions
+        busy = true; let token = generation, detector = detector, tableDetector = tableDetector, hints = stabilizer.searchRegions
         queue.async { [weak self] in
             guard let self else { return }
-            let result = autoreleasepool { Result { try detector.scan(image,excluding:excluded,searchRegions:hints,timestamp:time) } }
+            let result = autoreleasepool { Result {
+                let start = Date()
+                var scan = try detector.scan(image,excluding:excluded,searchRegions:hints,timestamp:time)
+                // A table OCR failure clears automatic money but must not stop continuous card recognition.
+                scan.table = try? tableDetector.scan(image,cards:scan.cards,heroRegions:Array(hints.prefix(2)),excluding:excluded)
+                scan.seconds = Date().timeIntervalSince(start)
+                return scan
+            } }
             Task { @MainActor in
                 guard self.generation == token, self.capture.running else { return }
                 self.busy = false
@@ -87,8 +95,12 @@ import TableRecognition
         guard now.timeIntervalSince(scan.timestamp) <= 2.5, scan.timestamp.timeIntervalSince(now) <= 1 else { clear("Scanning continues · waiting for a fresh screen reading…",keepLayout:true); return }
         scanned += 1; faces = scan.cards.count; candidates = scan.rectangles; milliseconds = Int(scan.seconds*1000); lastScan = scan.timestamp
         let result = stabilizer.accept(scan); hand = result.0; status = result.1
-        analysis.update(hand)
+        analysis.update(hand,table:scan.table)
         if scan.cards.isEmpty && !stabilizer.hasLayout { status = scan.diagnostics.summary }
-        log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)"])
+        log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)",
+                                  "table_observed":"\(scan.table != nil)","table_confirmed":"\(analysis.tableConfirmed)","seats_read":"\(scan.table?.seats.count ?? 0)",
+                                  "readable_stacks":"\(scan.table?.seats.filter { $0.stackCents != nil }.count ?? 0)","unclear_seats":"\(scan.table?.seats.filter { $0.activity == .unknown }.count ?? 0)",
+                                  "pot_read":"\(scan.table?.potCents != nil)","call_read":"\(scan.table?.callCents != nil)","side_pots_detected":"\(scan.table?.sidePots ?? false)",
+                                  "table_data_status":scan.table?.incompleteReason ?? (scan.table == nil ? "no_table" : "complete"),"automatic_ev_available":"\(analysis.automatic && analysis.callEstimate != nil)"])
     }
 }

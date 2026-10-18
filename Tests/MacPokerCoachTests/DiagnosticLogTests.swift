@@ -27,7 +27,10 @@ final class DiagnosticLogTests: XCTestCase {
         let log = DiagnosticLog(directory:folder)
         let model = AppModel(log:log)
         let pair = [DetectedCard(card:Card("Ah")!,bounds:UnitRect(x:0.4,y:0.7,width:0.07,height:0.12)),DetectedCard(card:Card("Kd")!,bounds:UnitRect(x:0.48,y:0.7,width:0.07,height:0.12))]
-        model.acceptScan(CardScan(cards:pair)); model.acceptScan(CardScan(cards:pair))
+        let table = TableObservation(potCents:12345,callCents:6789,seats:[
+            TableSeat(id:1,bounds:UnitRect(x:0.4,y:0.3,width:0.2,height:0.05),isHero:false,stackCents:98765,activity:.active),
+            TableSeat(id:2,bounds:UnitRect(x:0.4,y:0.8,width:0.2,height:0.05),isHero:true,stackCents:87654,activity:.active)])
+        model.acceptScan(CardScan(cards:pair,table:table)); model.acceptScan(CardScan(cards:pair,table:table)); model.acceptScan(CardScan(cards:pair,table:table))
         var diagnostics = ScanDiagnostics(); diagnostics.visionCandidates = 4; diagnostics.reject(.rankShapeUncertain)
         model.acceptScan(CardScan(cards:[],diagnostics:diagnostics))
         XCTAssertTrue(model.status.contains("Scanning continuously"))
@@ -37,8 +40,10 @@ final class DiagnosticLogTests: XCTestCase {
         XCTAssertTrue(data.contains("rejected_rankShapeUncertain"))
         XCTAssertTrue(data.contains("recognized_regions"))
         XCTAssertTrue(data.contains("layout_locked"))
+        XCTAssertTrue(data.contains("readable_stacks")); XCTAssertTrue(data.contains("table_data_status"))
         XCTAssertFalse(data.contains("Ah")); XCTAssertFalse(data.contains("Kd"))
         let records = try data.split(separator:"\n").map { try JSONDecoder().decode(DiagnosticLog.Record.self,from:Data($0.utf8)) }
+        XCTAssertFalse(records.contains { $0.fields.values.contains { value in ["12345","6789","98765","87654","$123.45","$67.89","$987.65"].contains(value) } })
         XCTAssertFalse(records.contains { $0.fields.keys.contains("cards") || $0.fields.keys.contains("image") || $0.fields.keys.contains("window_title") || $0.fields.keys.contains("url") })
     }
 }

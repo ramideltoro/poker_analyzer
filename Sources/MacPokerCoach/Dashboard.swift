@@ -34,7 +34,7 @@ struct RootView: View {
             }.padding(.vertical,16)
             Text(model.hand?.combination ?? (model.hand != nil ? "Two-card hand detected" : "Waiting for visible cards")).font(.title3).fontWeight(.medium)
             HandAnalysisView(analysis:model.analysis)
-            Text("Finds card faces automatically. Assumes the single two-card group below the board is yours; keep one table visible.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+            Text("Assumes the single two-card group below the board is yours. Keep the entire table, player stacks and action buttons visible.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             Spacer(minLength:0)
             VStack(alignment:.leading,spacing:8) {
                 HStack {
@@ -43,7 +43,7 @@ struct RootView: View {
                     Spacer()
                     if capture.running { Text("\(model.receivedFrames) frames · \(model.scanned) scans · \(model.candidates) candidates · \(model.faces) faces").font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary) }
                 }
-                Text("v\(model.version) · \(model.log.fileURL == nil ? "Logging unavailable" : "Local diagnostic logging on") · Images and card values are not logged.").font(.caption2).foregroundStyle(.secondary)
+                Text("v\(model.version) · \(model.log.fileURL == nil ? "Logging unavailable" : "Local diagnostic logging on") · Images, card values and amounts are not logged.").font(.caption2).foregroundStyle(.secondary)
             }
         }.padding(28) }.background(Color(red:0.055,green:0.075,blue:0.11))
     }
