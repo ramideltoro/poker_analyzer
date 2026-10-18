@@ -13,6 +13,7 @@ import TableRecognition
     @Published private(set) var lastScan: Date?
     let capture: CaptureController
     let log: DiagnosticLog
+    let analysis = HandAnalysisModel()
     var version: String { Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development" }
     private var stabilizer = ReadingStabilizer()
     private var generation = UUID()
@@ -43,6 +44,7 @@ import TableRecognition
     }
     func clear(_ reason: String,keepLayout: Bool = false) {
         generation = UUID(); busy = false; pending = nil; stabilizer.reset(keepLayout:keepLayout); hand = nil; faces = 0; lastScan = nil; status = reason
+        analysis.update(nil)
         log.write("readings_cleared",["reason":reason,"layout_retained":"\(stabilizer.hasLayout)"])
     }
     func expire(now: Date = Date()) {
@@ -64,6 +66,7 @@ import TableRecognition
                 case .success(let scan): self.acceptScan(scan)
                 case .failure(let error):
                     self.stabilizer.reset(keepLayout:true); self.hand = nil; self.status = "Card detection failed on this frame; retrying…"
+                    self.analysis.update(nil)
                     self.log.write("detector_error",["domain":(error as NSError).domain,"code":"\((error as NSError).code)","message":error.localizedDescription])
                 }
                 if let (next,timestamp,excluded) = self.pending {
@@ -84,6 +87,7 @@ import TableRecognition
         guard now.timeIntervalSince(scan.timestamp) <= 2.5, scan.timestamp.timeIntervalSince(now) <= 1 else { clear("Scanning continues · waiting for a fresh screen reading…",keepLayout:true); return }
         scanned += 1; faces = scan.cards.count; candidates = scan.rectangles; milliseconds = Int(scan.seconds*1000); lastScan = scan.timestamp
         let result = stabilizer.accept(scan); hand = result.0; status = result.1
+        analysis.update(hand)
         if scan.cards.isEmpty && !stabilizer.hasLayout { status = scan.diagnostics.summary }
         log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)"])
     }

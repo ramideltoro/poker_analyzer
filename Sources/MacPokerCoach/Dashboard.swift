@@ -8,7 +8,7 @@ struct RootView: View {
     @ObservedObject private var capture: CaptureController
     init(model: AppModel) { self.model = model; capture = model.capture }
     var body: some View {
-        VStack(alignment:.leading,spacing:24) {
+        ScrollView { VStack(alignment:.leading,spacing:24) {
             HStack(spacing:12) {
                 Image(systemName:"viewfinder").font(.title).foregroundStyle(accent)
                 VStack(alignment:.leading,spacing:5) {
@@ -33,6 +33,7 @@ struct RootView: View {
                 }
             }.padding(.vertical,16)
             Text(model.hand?.combination ?? (model.hand != nil ? "Two-card hand detected" : "Waiting for visible cards")).font(.title3).fontWeight(.medium)
+            HandAnalysisView(analysis:model.analysis)
             Text("Finds card faces automatically. Assumes the single two-card group below the board is yours; keep one table visible.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             Spacer(minLength:0)
             VStack(alignment:.leading,spacing:8) {
@@ -44,7 +45,7 @@ struct RootView: View {
                 }
                 Text("v\(model.version) · \(model.log.fileURL == nil ? "Logging unavailable" : "Local diagnostic logging on") · Images and card values are not logged.").font(.caption2).foregroundStyle(.secondary)
             }
-        }.padding(28).background(Color(red:0.055,green:0.075,blue:0.11))
+        }.padding(28) }.background(Color(red:0.055,green:0.075,blue:0.11))
     }
     private func label(_ text: String) -> some View { Text(text).font(.system(size:10,weight:.semibold)).tracking(1.2).foregroundStyle(.secondary) }
 }

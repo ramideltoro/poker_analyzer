@@ -5,6 +5,9 @@ public struct LiveHand: Sendable {
     public var hole: [DetectedCard]
     public var board: [DetectedCard]
     public var timestamp: Date
+    public init(hole: [DetectedCard],board: [DetectedCard],timestamp: Date) {
+        self.hole = hole; self.board = board; self.timestamp = timestamp
+    }
     public var combination: String? {
         let cards = (hole+board).map(\.card)
         guard hole.count == 2, board.count >= 3, Set(cards).count == cards.count else { return nil }

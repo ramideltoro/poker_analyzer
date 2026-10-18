@@ -1,6 +1,6 @@
-# Live Card Reader · 0.4.5
+# Live Card Reader · 0.5.0
 
-Continuously scans a monitor you select and automatically looks for visible playing-card faces. It displays the detected two-card hand, community cards, and the combination in those cards. There is one screen with Start/Stop and Show logs. No card-area marking, Safari-window selection, stored layouts, coaching, simulations or hand history.
+Continuously scans a monitor you select and automatically looks for visible playing-card faces. It displays your detected hole cards, community cards, current combination, local showdown equity and a simplified dollar EV for calling. There is one dashboard with Start/Stop, Show logs and manual pot/call inputs. No card-area marking, stored layouts, action recommendations, automated betting or hand history.
 
 ## Start
 
@@ -17,17 +17,29 @@ The selected monitor is streamed continuously, targeting two frames per second. 
 
 The footer shows received frames, completed scans, attempted candidates and recognized faces. The status distinguishes a received screen with no card-shaped areas, an excluded screen area, and ranks/suits that do not match. The detector supports conventional light faces and large centered suits. Version 0.4.3 correctly reconstructs Q-clubs and 5-clubs with no live board from the user-supplied Bovada screenshot, ignoring the miniature preview and history faces. It also handles the lower card edges merging into the white seat panel in that image. Other ranks, suits and table layouts on the actual site still need validation; one screenshot does not establish general recognition accuracy. Very small, tilted, unfamiliar or obscured glyphs may be rejected.
 
+## Equity and dollar EV
+
+Once the cards are confirmed, the app automatically calculates your expected share of the pot at showdown, including split pots. Set the number of opponents manually (1–8, default one). Their hole cards are uniformly random legal hands; no strength range or betting history is inferred. Preflop, flop, turn and multiway river use 12,000 local Monte Carlo deals. A heads-up river enumerates all 990 possible opponent hands exactly. Calculation runs separately from screen recognition.
+
+For dollar EV, enter the **current pot before your call**, including the opponent's current bet and all prior contributions, and the **additional amount you must call**. Exclude your new call from the pot input. Inputs use dollars with a decimal point. The formula is `EV = equity × (pot + call) − call`, measuring incremental value relative to folding; your prior contributions are sunk. A zero call models checking through. The dashboard also shows the break-even equity `call / (pot + call)`.
+
+This is a **showdown model**: one pot for which everyone is equally eligible, everyone reaching showdown, no further bets, no future folds, and no rake. It is not a solver or a complete estimate of action profitability. Opponent ranges, future betting, side pots and recognition errors can materially change the result. Pot and call values are manual; update them when betting changes. Both fields reset when cards or opponent count change, readings become ambiguous/stale, or capture stops.
+
+Monte Carlo results show a conservative two-sided 95% sampling bound using Hoeffding's inequality, `sqrt(log(40) / (2 × samples))`; EV's displayed range applies that bound to the same pot/call inputs. This bound covers sampling noise under the chosen random-hand model. It does not quantify opponent-range or recognition uncertainty. Exact river enumeration has no simulation noise. Old jobs are cancelled and their results ignored when the recognized hand changes.
+
+Formula references: [expected value](https://www.pokerstars.com/poker/learn/lesson/examining-tournament-ev/), [pot odds](https://www.pokerstars.com/poker/learn/lesson/pot-odds/), and [Hoeffding's original paper](https://www.tandfonline.com/doi/abs/10.1080/01621459.1963.10500830).
+
 ## Troubleshoot 0 faces
 
 Version 0.4.5 adds references for the supplied card artwork's spade, club and heart silhouettes, with small pixel-alignment tolerance. This corrects a confirmed 4-spades → 4-clubs misreading. The supplied A-clubs/J-hearts hand and 4-spades/10-clubs/J-clubs flop now pass screenshot replay at the original resolution and at 3840×2160, 2560×1440 and 1920×1080 with small pixel offsets. The acceptance thresholds are unchanged. These are image-replay checks; other live hands and actual-site diamond artwork remain unverified.
 
-Quit and reopen the app after updating; check **v0.4.5** at the bottom. Start screen sharing, leave the table visible for 10–15 seconds, then click **Show logs**. Finder selects this launch's `.jsonl` file. Attach that file for diagnosis. It is in `~/Library/Application Support/LiveCardReader/Logs/`.
+Quit and reopen the app after updating; check **v0.5.0** at the bottom. Start screen sharing, leave the table visible for 10–15 seconds, then click **Show logs**. Finder selects this launch's `.jsonl` file. Attach that file for diagnosis. It is in `~/Library/Application Support/LiveCardReader/Logs/`.
 
 Logs contain app/build/OS version, picker and permission-preflight events, capture errors, stream status codes, input dimensions, hint counts and accepted-face rectangles, received-frame counts, scan duration and frame age, exclusion coverage, candidate counts, rank/suit match scores and rejection categories. Per-candidate details record the rectangle, crop method, numeric match scores/margins and rejection stage, without predicted ranks or suits. The global permission preflight is diagnostic only; picker-authorized capture can work even when the global permission flag is false. Rejection counts describe attempts, which can include multiple proposals for the same shape.
 
 ## Repeated screen-recording permission dialog
 
-The v0.4.1 logs showed successful `capture_started` events followed immediately by `snapshot_error` code `-3801` (TCC permission denied). The extra screenshot request then stopped the approved stream. Version 0.4.2 removed that request, and the supplied v0.4.2 log confirms 82 incoming frames and completed scans without that error. Quit the old app completely and open `dist/Live Card Reader.app`; verify **v0.4.5** before clicking Start. Selecting a monitor in Apple's sharing picker for each new session is expected.
+The v0.4.1 logs showed successful `capture_started` events followed immediately by `snapshot_error` code `-3801` (TCC permission denied). The extra screenshot request then stopped the approved stream. Version 0.4.2 removed that request, and the supplied v0.4.2 log confirms 82 incoming frames and completed scans without that error. Quit the old app completely and open `dist/Live Card Reader.app`; verify **v0.5.0** before clicking Start. Selecting a monitor in Apple's sharing picker for each new session is expected.
 
 This development build is ad-hoc signed. Rebuilding changes its code identity, so an existing System Settings permission may refer to an earlier build. If macOS still explicitly requests global screen-recording access, remove the old Live Card Reader entry in System Settings → Privacy & Security → Screen & System Audio Recording, add the exact current app from `dist`, enable it and quit/reopen the app. Do not reset permissions for unrelated apps. Apple's explanation of development signing and privacy authorization is at https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements.
 

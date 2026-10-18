@@ -1,4 +1,14 @@
-# Live Card Reader 0.4.5 verification
+# Live Card Reader 0.5.0 verification
+
+## Equity and manual-input call EV
+
+Added a local equity engine with uniform legal opponent deals, fractional tie shares and a two-sided 95% Hoeffding sampling bound. Heads-up river results enumerate all 990 opponent combinations; other states use 12,000 Monte Carlo samples. Opponent count is explicit and manual (1–8). No range or wager amount is inferred from the screen. Dollar EV is `equity × (pot before call + new call) − new call`, with manual inputs and a one-pot, no-later-betting, no-rake showdown assumption.
+
+Analysis runs in cancellable background tasks, separate from capture/recognition. Results and money inputs clear on unconfirmed, changed or stale cards, opponent-count changes and capture invalidation. Generation checks reject late results from old hands even when a worker ignores cancellation. Identical confirmed cards retain their analysis and entered amounts instead of restarting each frame. Manual amounts must still be updated when betting changes without a card change.
+
+New tests cover exact counted combinations, known wins/losses, multiway ties, seeded reproducibility, Monte Carlo agreement within its bound, invalid/duplicate inputs, cancellation, EV arithmetic and threshold/range propagation. Model tests cover automatic recognition-to-analysis wiring, amount resets, invalid dollar inputs, late results after a new hand and clearing after folds. A synthetic offscreen NSHostingView render was inspected to verify the dashboard layout; no live poker display was captured for UI verification.
+
+The v0.5.0 optimized run scheduled 45 cases: 43 passed, two optional original full-screenshot cases skipped, zero failures (about 4.16 seconds). The new flop screenshot and both packaged crops were tested. Live capture with the new panel and manual amount editing still require user verification.
 
 ## Second screenshot: reproducible suit error
 
@@ -8,7 +18,7 @@ Version 0.4.5 adds normalized silhouettes for the supplied artwork's spade, club
 
 Diagnostics now record each glyph-read attempt's normalized candidate rectangle, crop method, numeric scores/margins and rejected stage. They do not record predicted ranks/suits, images, URLs or account data. This avoids relying on aggregate best scores to diagnose one failing card.
 
-Latest optimized test result: 35 cases scheduled, 33 passed, 2 optional old full-screenshot replays skipped, zero failures (about 3.37 seconds). The old 6:18 full file is no longer available; its packaged Q-clubs/5-clubs crop still passes at four render scales. The new full screenshot is supplied by CARD_READER_FLOP_FIXTURE. Standard rank/suit fixtures, all 52 generated cards, 20 successive hands with folds, stale clearing, hints, exclusions and logging still pass.
+The v0.4.5 optimized result was 35 cases scheduled, 33 passed, 2 optional old full-screenshot replays skipped, zero failures (about 3.37 seconds). The old 6:18 full file is no longer available; its packaged Q-clubs/5-clubs crop still passes at four render scales. The new full screenshot is supplied by CARD_READER_FLOP_FIXTURE. Standard rank/suit fixtures, all 52 generated cards, 20 successive hands with folds, stale clearing, hints, exclusions and logging still pass.
 
 ## Follow-up recognition evidence
 
@@ -48,7 +58,7 @@ The existing bundle is ad-hoc signed, with a designated requirement tied to its 
 
 ## Checks
 
-- The current suite contains 35 cases: three card-ranking cases, twelve automatic-recognition/grouping cases, five screenshot cases, five app-model cases, five exclusion/diagnostic-stage cases, two logging cases and three stream-cache cases. The latest result is 33 passed and two optional original full-image cases skipped. Cases cover 20 consecutive hands separated by folds/empty frames, recovery after stale input, retained seat geometry with distracting duplicate sidebar pairs, reading changed cards from hint regions, blank-frame rejection and reader-window exclusions on hinted regions.
+- The current suite contains 45 cases: three card-ranking cases, six equity/EV cases, twelve automatic-recognition/grouping cases, five screenshot cases, five app-model cases, four analysis-model cases, five exclusion/diagnostic-stage cases, two logging cases and three stream-cache cases. The latest result is 43 passed and two optional original full-image cases skipped. Cases cover 20 consecutive hands separated by folds/empty frames, recovery after stale input, retained seat geometry with distracting duplicate sidebar pairs, reading changed cards from hint regions, blank-frame rejection and reader-window exclusions on hinted regions, plus the equity/EV cases above.
 - The earlier v0.4.4 full screenshot replay selected Q-clubs/5-clubs, rejected the sidebar as a live board, confirmed after two observations and cleared when cards disappeared. Its packaged crop still passes at four render scales (0.5, 0.75, 1.0 and 1.25 in the test canvas). The new screenshot/crop checks are described above. Fixture timings are not measured live capture-to-dashboard latency guarantees.
 - Regression checks verify that full Safari occlusion leaves no reader exclusion, partial occlusion excludes only the visible remainder, off-Space reader windows contribute nothing, transparent overlays do not invent occlusion, and repeated previous-frame rectangles do not inflate coverage.
 - The detector still passes all 52 rank/suit combinations on generated conventional card faces. A five-card scene and moved/resized pairs are recognized without supplied coordinates. Empty/ambiguous/duplicate/old observations remain suppressed.
