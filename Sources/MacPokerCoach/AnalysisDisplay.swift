@@ -10,6 +10,8 @@ struct AnalysisDisplay {
     var estimate: CallEstimate?
     var context: StackCallContext?
     var eligiblePotDollars: Double?
+    var decisionEquity: Double?
+    var decisionCallDollars: Double?
     var opponents = 1
     var equityTime: Date?
     var estimateTime: Date?

@@ -31,6 +31,18 @@ public struct RunoutDetails: Sendable {
 }
 
 public enum HandDetails {
+    /// A deterministic best-five selection; equivalent selections may exist in tied hands.
+    public static func bestFive(_ cards: [Card]) -> [Card] {
+        guard (5...7).contains(cards.count), Set(cards).count == cards.count else { return [] }
+        var best = [Card](), rank: HandRank?
+        for a in 0..<cards.count-4 { for b in a+1..<cards.count-3 { for c in b+1..<cards.count-2 {
+            for d in c+1..<cards.count-1 { for e in d+1..<cards.count {
+                let selection = [cards[a],cards[b],cards[c],cards[d],cards[e]], value = Evaluator.evaluate(selection)
+                if rank == nil || value > rank! { rank = value; best = selection }
+            } }
+        } } }
+        return best.sorted { $0.rank == $1.rank ? $0.code < $1.code : $0.rank > $1.rank }
+    }
     public static func startingClass(_ hole: [Card]) -> String? {
         guard hole.count == 2, Set(hole).count == 2 else { return nil }
         let sorted = hole.sorted { $0.rank > $1.rank }

@@ -1,4 +1,18 @@
-# Live Card Reader 0.9.0 verification
+# Live Card Reader 0.10.0 verification
+
+## Full-window grid, hand details and threshold explanation
+
+The app’s window fills NSScreen.visibleFrame once on creation, preserving menu bar/Dock and allowing subsequent manual resizing. The expand control repeats that window action. The sizing view ignores mouse hit tests. RootView computes a responsive grid from the actual content size, allocating all available vertical space between header, full-width summary, three body columns, cards and footer. Hand Details sits directly below Showdown Outcome. Threshold explanation and final-category chart occupy the center; all nine player slots occupy the right. The main dashboard has no ScrollView.
+
+Call-threshold presentation now includes the actual saved/current call and eligible-pot inputs, break-even percentage, pot odds, decision equity, percentage-point margin, zero-cost-check handling, sampling-overlap labeling and the model’s limits. On larger windows it includes EV arithmetic. Decision equity/call are saved alongside the existing EV/pot snapshot, and never feed live calculations. A review regression verifies that later what-if equity and pot/opponent changes cannot overwrite the decision comparison. Mode changes, new hands and resets clear incompatible snapshot fields.
+
+Hand Details exposes a deterministic best-five-card selection in addition to made hand, street, starting class, texture, exact improvement/runout information, improving cards and historical context. It explicitly allows equivalent selections in ties. New core tests verify a known royal-flush selection, playing the board and rejection of incomplete/duplicate-card inputs. The probability engine and recognition logic are otherwise unchanged.
+
+Grid tests cover 1000×720, 1120×760, 1440×900 and 1900×1020, checking full height/width allocation and aligned column subdivisions. Synthetic native renders cover empty/live/review/manual states at minimum, laptop and large-display sizes. Layout tests also cover nine seats and resets. No live website or monitor contents were read through tools. These are offscreen view/layout checks, not real-site recognition accuracy claims.
+
+Final optimized suite: 85 scheduled, 83 passed, two older optional original-image replays skipped, zero failures (about 12.26 seconds). The native window test creates an unshown window, verifies its frame matches the usable desktop, confirms it remains hidden, checks manual resizing is retained and verifies mouse hit-test passthrough. Apple silicon v0.10.0 (build 16) is packaged and ad-hoc signed.
+
+# Earlier v0.9.0 verification
 
 ## Compact dashboard
 

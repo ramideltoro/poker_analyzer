@@ -243,3 +243,27 @@ extension AutomaticAnalysisTests {
         app.clear("Stopped"); XCTAssertNil(app.analysis.display.hand)
     }
 }
+
+extension AutomaticAnalysisTests {
+    func testThresholdExplanationRetainsOneDecisionSnapshotWhileReviewEquityChanges() async throws {
+        let m = model(); try await confirm(m,table())
+        XCTAssertEqual(m.display.decisionEquity,0.5)
+        XCTAssertEqual(m.display.decisionCallDollars,1)
+        XCTAssertEqual(m.display.eligiblePotDollars,3)
+        XCTAssertEqual(m.display.estimate?.requiredEquity,0.25)
+        var review = hand(); review.isReview = true
+        var t = table(pot:1000,call:0); t.seats[2].activity = .folded; t.seats[1].activity = .active
+        m.update(review,table:t); m.update(review,table:t); try await wait(m)
+        XCTAssertEqual(m.display.result?.equity,1.0/3)
+        XCTAssertEqual(m.display.decisionEquity,0.5,"Threshold comparison must use the frozen decision, not later what-if equity")
+        XCTAssertEqual(m.display.decisionCallDollars,1); XCTAssertEqual(m.display.eligiblePotDollars,3)
+        m.setAutomatic(false)
+        XCTAssertNil(m.display.decisionEquity); XCTAssertNil(m.display.decisionCallDollars)
+        m.reset(); m.update(hand()); try await wait(m)
+        m.potText = "3"; m.callText = "1"
+        XCTAssertEqual(m.display.decisionCallDollars,1); XCTAssertEqual(m.display.decisionEquity,m.result?.equity)
+        m.callText = "0"; XCTAssertEqual(m.display.estimate?.requiredEquity,0)
+        XCTAssertEqual(m.display.decisionCallDollars,0)
+        m.reset(); XCTAssertNil(m.display.decisionEquity)
+    }
+}

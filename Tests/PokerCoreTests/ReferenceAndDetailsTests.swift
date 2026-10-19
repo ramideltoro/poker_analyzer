@@ -56,3 +56,16 @@ final class ReferenceAndDetailsTests: XCTestCase {
         }
     }
 }
+
+extension ReferenceAndDetailsTests {
+    func testBestFiveSelectsTheMadeHandAndRejectsIncompleteOrDuplicateCards() {
+        let all = cards("Ah Kh Qh Jh Th 2c 3d")
+        let best = HandDetails.bestFive(all)
+        XCTAssertEqual(Set(best),Set(cards("Ah Kh Qh Jh Th")))
+        XCTAssertEqual(Evaluator.evaluate(best),Evaluator.evaluate(all))
+        XCTAssertTrue(HandDetails.bestFive(cards("Ah Kh")).isEmpty)
+        XCTAssertTrue(HandDetails.bestFive(cards("Ah Ah Qh Jh Th")).isEmpty)
+        let boardOnly = cards("2c 3d As Ks Qs Js Ts")
+        XCTAssertEqual(Set(HandDetails.bestFive(boardOnly)),Set(cards("As Ks Qs Js Ts")))
+    }
+}

@@ -40,6 +40,7 @@ import TableRecognition
         defer { updating = false; refreshDisplay() }
         automatic = enabled; potText = ""; callText = ""
         display.estimate = nil; display.context = nil; display.eligiblePotDollars = nil; display.estimateTime = nil
+        display.decisionEquity = nil; display.decisionCallDollars = nil
         invalidate(); refreshAnalysis()
     }
     func setOpponents(_ count: Int) {
@@ -187,6 +188,8 @@ import TableRecognition
         if let result { next.result = result; next.opponents = opponents; next.equityTime = Date() }
         if let ev = callEstimate {
             next.estimate = ev; next.context = automaticContext; next.estimateTime = Date()
+            next.decisionEquity = result?.equity
+            next.decisionCallDollars = automatic ? automaticContext.map { Double($0.callCents)/100 } : Self.amount(callText)
             next.eligiblePotDollars = automatic ? automaticContext.map { Double($0.potCents)/100 } : Self.amount(potText)
         }
         display = next
