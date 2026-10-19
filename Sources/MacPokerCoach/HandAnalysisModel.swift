@@ -13,6 +13,8 @@ import TableRecognition
     @Published private(set) var table: TableObservation?
     @Published private(set) var tableConfirmed = false
     @Published private(set) var display = AnalysisDisplay()
+    @Published private(set) var details: RunoutDetails?
+    private var detailsKey: CardsKey?
     @Published var potText = "" { didSet { refreshDisplay() } }
     @Published var callText = "" { didSet { refreshDisplay() } }
     private struct CardsKey: Equatable { var hole: [Card]; var board: [Card] }
@@ -50,8 +52,13 @@ import TableRecognition
         updating = true
         defer { updating = false; refreshDisplay() }
         current = hand
+        if let hand {
+            let detailKey = CardsKey(hole:hand.hole.map(\.card),board:hand.board.map(\.card))
+            if detailsKey != detailKey { detailsKey = detailKey; details = RunoutDetails(hole:detailKey.hole,board:detailKey.board) }
+        }
         let next = hand.map { CardsKey(hole:$0.hole.map(\.card).sorted { $0.code < $1.code },board:$0.board.map(\.card).sorted { $0.code < $1.code }) }
         if let next, let previous = display.hand,
+           !((hand?.isReview == true) && next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code }),
            next != CardsKey(hole:previous.hole.map(\.card).sorted { $0.code < $1.code },board:previous.board.map(\.card).sorted { $0.code < $1.code }) {
             display = AnalysisDisplay()
         }
@@ -69,7 +76,7 @@ import TableRecognition
         refreshAnalysis()
     }
     /// Stop, stale capture or permission loss must remove even presentation-only history.
-    func reset() { update(nil); display = AnalysisDisplay() }
+    func reset() { update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil }
     private func validOpponentCount(_ table: TableObservation) -> Bool {
         table.seats.filter(\.isHero).count == 1 && (2...9).contains(table.seats.count) &&
         table.seats.allSatisfy { $0.activity != .unknown } && (1...8).contains(table.activeOpponents.count)
@@ -108,7 +115,7 @@ import TableRecognition
         }
     }
     var automaticContext: StackCallContext? {
-        guard automatic, tableConfirmed, let table, table.incompleteReason == nil,
+        guard current?.isReview != true, automatic, tableConfirmed, let table, table.incompleteReason == nil,
               let pot = table.potCents, let quoted = table.callCents, let stack = table.hero?.stackCents else { return nil }
         var uncapped = quoted
         if quoted >= stack {
@@ -122,13 +129,15 @@ import TableRecognition
                                     opponentStackCents:table.activeOpponents.compactMap(\.stackCents),sidePots:table.sidePots)
     }
     var callEstimate: CallEstimate? {
-        guard let result else { return nil }
+        guard current?.isReview != true, let result else { return nil }
         if automatic { return try? automaticContext?.estimate(result) }
         guard let pot = Self.amount(potText), let call = Self.amount(callText) else { return nil }
         return try? CallEstimate(equity:result,potBeforeCall:pot,call:call)
     }
+    var isReview: Bool { current?.isReview == true || display.hand?.isReview == true }
     var hasCards: Bool { current != nil }
     var amountHelp: String {
+        if isReview { return "Saved hole cards: probabilities are what-if results against the visible remaining players. Call EV is frozen at the last decision; you have no claim to the pot after folding." }
         guard current != nil else { return "Waiting for confirmed cards." }
         if automatic {
             guard let table else { return "Reading the table · last confirmed values stay muted while updating." }
@@ -145,7 +154,8 @@ import TableRecognition
     var equityIsCurrent: Bool { current != nil && result != nil }
     var estimateIsCurrent: Bool { callEstimate != nil }
     var displayStatus: String {
-        if current == nil { return display.hand == nil ? "Waiting for cards" : "Updating · previous confirmed hand" }
+        if current == nil { return display.hand == nil ? "Waiting for cards" : isReview ? "Review held · waiting for next confirmed hand / board" : "Updating · previous confirmed hand" }
+        if isReview { return calculating ? "Review · updating what-if probabilities" : "Review · saved hole cards, last-decision EV" }
         if calculating { return "Calculating probabilities" }
         if callEstimate != nil { return "Live estimate" }
         if !automatic { return "Waiting for manual pot / call inputs" }
@@ -157,7 +167,7 @@ import TableRecognition
     var simulationSummary: String {
         guard let value = display.result else { return "Waiting for a confirmed hand and opponent count." }
         let model = "vs \(display.opponents) random \(display.opponents == 1 ? "opponent" : "opponents")"
-        return value.exact ? "Exact · \(value.samples) deals · \(model)" : "\(value.samples) deals · \(model) · 95% bound per metric ±\(String(format:"%.1f",value.samplingBound*100)) pp"
+        return value.exact ? "Exact · \(value.samples.formatted()) deals · \(model)" : "\(value.samples.formatted()) deals · \(model) · 95% bound per metric ±\(String(format:"%.2f",value.samplingBound*100)) pp"
     }
     private func refreshDisplay() {
         guard !updating else { return }

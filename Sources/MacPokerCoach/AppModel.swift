@@ -16,6 +16,7 @@ import TableRecognition
     let analysis = HandAnalysisModel()
     var version: String { Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development" }
     private var stabilizer = ReadingStabilizer()
+    private var reviewTracker = FoldReviewTracker()
     private var generation = UUID()
     private var busy = false
     private var pending: (CGImage,Date,[UnitRect])?
@@ -45,7 +46,7 @@ import TableRecognition
     }
     func clear(_ reason: String,keepLayout: Bool = false) {
         generation = UUID(); busy = false; pending = nil; stabilizer.reset(keepLayout:keepLayout); hand = nil; faces = 0; lastScan = nil; status = reason
-        analysis.reset()
+        reviewTracker.reset(); analysis.reset()
         log.write("readings_cleared",["reason":reason,"layout_retained":"\(stabilizer.hasLayout)"])
     }
     func expire(now: Date = Date()) {
@@ -94,10 +95,12 @@ import TableRecognition
         log.write("detector_completed",fields)
         guard now.timeIntervalSince(scan.timestamp) <= 2.5, scan.timestamp.timeIntervalSince(now) <= 1 else { clear("Scanning continues · waiting for a fresh screen reading…",keepLayout:true); return }
         scanned += 1; faces = scan.cards.count; candidates = scan.rectangles; milliseconds = Int(scan.seconds*1000); lastScan = scan.timestamp
-        let result = stabilizer.accept(scan); hand = result.0; status = result.1
+        let result = stabilizer.accept(scan)
+        hand = reviewTracker.accept(live:result.0,scan:scan)
+        status = hand?.isReview == true ? "Saved hole cards · continuing visible-board what-if review" : result.1
         analysis.update(hand,table:scan.table)
         if scan.cards.isEmpty && !stabilizer.hasLayout { status = scan.diagnostics.summary }
-        log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)",
+        log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","saved_card_review":"\(hand?.isReview == true)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)",
                                   "table_observed":"\(scan.table != nil)","table_confirmed":"\(analysis.tableConfirmed)","seats_read":"\(scan.table?.seats.count ?? 0)",
                                   "readable_stacks":"\(scan.table?.seats.filter { $0.stackCents != nil }.count ?? 0)","unclear_seats":"\(scan.table?.seats.filter { $0.activity == .unknown }.count ?? 0)",
                                   "pot_read":"\(scan.table?.potCents != nil)","call_read":"\(scan.table?.callCents != nil)","side_pots_detected":"\(scan.table?.sidePots ?? false)",

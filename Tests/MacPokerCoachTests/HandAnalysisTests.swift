@@ -55,7 +55,7 @@ import TableRecognition
         XCTAssertEqual(model.callEstimate?.value,1.5)
         model.setOpponents(9); XCTAssertEqual(model.opponents,1)
     }
-    func testReaderStartsAnalysisOnlyAfterConfirmationAndClearsItOnFold() async throws {
+    func testReaderStartsAnalysisAfterConfirmationAndPausesOnUnlocatedEmptyFrame() async throws {
         let model = AppModel(log:.disabled)
         model.analysis.setAutomatic(false)
         let fixture = hand(board:["2c","7s","Jd"])
@@ -190,5 +190,56 @@ extension AutomaticAnalysisTests {
         m.update(changed,table:table())
         XCTAssertNil(m.display.result); XCTAssertNil(m.display.estimate); XCTAssertNil(m.display.table)
         XCTAssertEqual(m.display.hand?.hole.map { $0.card.code },["Qc","5c"])
+    }
+}
+
+extension AutomaticAnalysisTests {
+    func testSavedCardReviewUpdatesProbabilitiesButFreezesLastDecisionEV() async throws {
+        let m = model(); try await confirm(m,table())
+        let previous = m.display.estimate
+        var review = hand(); review.isReview = true
+        var t = table(pot:900,call:0); t.seats[2].activity = .folded
+        m.update(review,table:t); m.update(review,table:t); try await wait(m)
+        XCTAssertTrue(m.isReview); XCTAssertTrue(m.equityIsCurrent)
+        XCTAssertNil(m.callEstimate); XCTAssertFalse(m.estimateIsCurrent)
+        XCTAssertEqual(m.display.estimate,previous)
+        review.board = ["2c","7s","Jd"].enumerated().map { DetectedCard(card:Card($0.element)!,bounds:UnitRect(x:0.25+Double($0.offset)*0.08,y:0.4,width:0.07,height:0.12)) }
+        m.update(review,table:t); m.update(review,table:t); try await wait(m)
+        XCTAssertEqual(m.display.hand?.board.count,3); XCTAssertEqual(m.display.estimate,previous)
+        XCTAssertNotNil(m.details); XCTAssertTrue(m.amountHelp.contains("no claim"))
+        t.seats[1].activity = .active
+        m.update(review,table:t); m.update(review,table:t); try await wait(m)
+        XCTAssertEqual(m.result?.equity,1.0/3); XCTAssertEqual(m.display.estimate,previous)
+        XCTAssertNil(m.automaticContext)
+
+        m.reset(); XCTAssertNil(m.details); XCTAssertFalse(m.isReview)
+    }
+}
+
+extension AutomaticAnalysisTests {
+    func testReaderContinuouslyReviewsFoldedCardsAcrossBoardChangesAndStartsNewHand() async throws {
+        let app = AppModel(log:.disabled)
+        let base = HandAnalysisTests()
+        let flop = base.hand(board:["2c","7s","Jd"])
+        let scan = CardScan(cards:flop.hole+flop.board,table:table())
+        for _ in 0..<3 { app.acceptScan(scan) }
+        try await wait(app.analysis)
+        let ev = app.analysis.display.estimate
+        XCTAssertNotNil(ev)
+        var folded = table(pot:500,call:0); folded.seats[2].activity = .folded; folded.callCents = nil
+        for codes in [["2c","7s","Jd"],["2c","7s","Jd","Qs"],["2c","7s","Jd","Qs","3s"]] {
+            let next = base.hand(board:codes)
+            for _ in 0..<3 { app.acceptScan(CardScan(cards:next.board,table:folded)) }
+            try await wait(app.analysis)
+            XCTAssertTrue(app.hand?.isReview == true)
+            XCTAssertEqual(app.analysis.display.hand?.board.count,codes.count)
+            XCTAssertEqual(app.analysis.display.estimate,ev); XCTAssertNil(app.analysis.callEstimate)
+        }
+        XCTAssertEqual(app.scanned,12)
+        let fresh = base.hand(["Qc","5c"])
+        for _ in 0..<3 { app.acceptScan(CardScan(cards:fresh.hole,table:table())) }
+        try await wait(app.analysis)
+        XCTAssertFalse(app.analysis.isReview); XCTAssertEqual(app.hand?.hole.map(\.card),fresh.hole.map(\.card))
+        app.clear("Stopped"); XCTAssertNil(app.analysis.display.hand)
     }
 }

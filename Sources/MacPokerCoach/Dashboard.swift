@@ -34,7 +34,7 @@ struct RootView: View {
                     HStack(spacing:10) { ForEach(0..<5,id:\.self) { i in PlayingCard(card:analysis.display.hand?.board[safe:i]?.card,small:true,muted:model.hand == nil) } }
                 }
             }.padding(.vertical,16)
-            Text(model.hand == nil && analysis.display.hand != nil ? "Previous confirmed hand · waiting for fresh cards" : (model.hand?.combination ?? (model.hand != nil ? "Two-card hand detected" : "Waiting for visible cards"))).font(.title3).fontWeight(.medium).lineLimit(1).frame(height:26,alignment:.leading)
+            Text(analysis.isReview ? "Saved hole cards · hypothetical hand review" : model.hand == nil && analysis.display.hand != nil ? "Previous confirmed hand · waiting for fresh cards" : (model.hand?.combination ?? (model.hand != nil ? "Two-card hand detected" : "Waiting for visible cards"))).font(.title3).fontWeight(.medium).lineLimit(1).frame(height:26,alignment:.leading)
             HandAnalysisView(analysis:model.analysis)
             Text("Assumes the single two-card group below the board is yours. Keep the entire table, player stacks and action buttons visible.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             Spacer(minLength:0)

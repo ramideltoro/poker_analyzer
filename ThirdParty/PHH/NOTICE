@@ -1,0 +1,13 @@
+Poker Hand Histories dataset by Juho Kim / University of Toronto CPRG.
+Source: https://github.com/uoftcprg/phh-dataset
+Downloaded main, resolved commit e47fbd5816372360bade4de5d712346fe1bb70f6 on 2026-10-18.
+Repository LICENSE is MIT (included). Zenodo dataset metadata separately lists
+CC-BY-4.0: https://doi.org/10.5281/zenodo.10796885 . Original hand histories
+retain their source provenance. This app distributes aggregate statistics only;
+no player identifiers, individual hand histories, or original wagering records.
+Sources include anonymized HandHQ July 2009, Pluribus (Brown and Sandholm 2019),
+and selected historical/WSOP hands. Known-card and completed-board samples have
+selection bias and do not model present-day Bovada players.
+The raw local archive includes other variants; only variant NT is aggregated.
+The separate Zenodo ACPC collection (including limit variants and duplicates)
+is outside this import and was not downloaded. See docs/REFERENCE_DATA.md.

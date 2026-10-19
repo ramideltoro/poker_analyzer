@@ -1,0 +1,8 @@
+variant = "NT"
+actions = [
+  # Some comment's "quoted words" must not become actions.
+  "d dh p1 QsJs",
+  "d db Ts9s8s",
+  "d db 2h",
+  "d db 3h",
+]

@@ -1,0 +1,9 @@
+Poker Hand [Dataset], Robert Cattral and Franz Oppacher (2006),
+UCI Machine Learning Repository. https://doi.org/10.24432/C5KW38
+Source: https://archive.ics.uci.edu/dataset/158/poker+hand
+License: Creative Commons Attribution 4.0 International (included).
+Downloaded on 2026-10-18. Both original data files were used, unchanged, as
+an offline evaluator validation corpus. The app bundles validation counts,
+not the original records. All 1,025,010 labels are checked by the importer.
+Royal flush (UCI label 9) is separated from straight flush for validation;
+the app groups all straight flushes into its standard nine-category chart.

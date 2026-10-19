@@ -7,8 +7,10 @@ public final class TableStateDetector: @unchecked Sendable {
     public init() {}
     public func scan(_ image: CGImage,cards: [DetectedCard],heroRegions: [UnitRect] = [],excluding: [UnitRect] = []) throws -> TableObservation? {
         let selected = heroRegions.count == 2 ? CardGrouping.select(cards,near:heroRegions) : CardGrouping.select(cards)
-        guard selected.issue == nil, selected.hole.count == 2 else { return nil }
-        let hole = selected.hole.map(\.bounds), centerX = hole.map { $0.rect.midX }.reduce(0,+)/2
+        let heroVisible = selected.issue == nil && selected.hole.count == 2
+        guard heroVisible || heroRegions.count == 2 else { return nil }
+        let hole = heroVisible ? selected.hole.map(\.bounds) : heroRegions
+        let centerX = hole.map { $0.rect.midX }.reduce(0,+)/2
         let width = hole.map(\.width).reduce(0,+)/2, height = hole.map(\.height).reduce(0,+)/2
         let top = hole.map(\.y).min()!, bottom = hole.map { $0.rect.maxY }.max()!
         let region = CGRect(x:centerX-width*12,y:max(0,top-height*6),width:width*24,height:height*10)
@@ -39,7 +41,7 @@ public final class TableStateDetector: @unchecked Sendable {
                 abs(text.bounds.rect.midX-panel.rect.midX) < panel.width*0.6 && text.bounds.y >= panel.y && text.bounds.y < panel.rect.maxY+panel.height*1.1
             }.map { $0.value.uppercased() }
             let activity: SeatActivity
-            if hero { activity = .active }
+            if hero { activity = heroVisible ? .active : .folded }
             else if labels.contains(where:{ $0.contains("SITTING OUT") }) { activity = .sittingOut }
             else if labels.contains(where:{ $0.contains("NEW PLAYER") }) { activity = .waiting }
             else { activity = cardBackActivity(image,panel:panel,cards:cards) }

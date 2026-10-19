@@ -45,6 +45,12 @@ final class TableReadingTests: XCTestCase {
                 XCTAssertEqual(table.seats.filter { $0.activity == .sittingOut }.count,1)
                 XCTAssertEqual(table.seats.filter { $0.activity == .waiting }.count,1)
             }
+            let selected = CardGrouping.select(cards)
+            let noHero = cards.filter { !selected.hole.contains($0) }
+            let review = try XCTUnwrap(TableStateDetector().scan(image,cards:noHero,heroRegions:selected.hole.map(\.bounds)))
+            XCTAssertEqual(review.potCents,pot)
+            XCTAssertEqual(review.seats.compactMap(\.stackCents).sorted(),stacks)
+            XCTAssertEqual(review.hero?.activity,.folded,"Missing recognized hero faces retain anchored table OCR")
             let opponent = try XCTUnwrap(table.activeOpponents.first)
             let blocked = try XCTUnwrap(TableStateDetector().scan(image,cards:cards,excluding:[opponent.bounds]))
             XCTAssertNotNil(blocked.incompleteReason)

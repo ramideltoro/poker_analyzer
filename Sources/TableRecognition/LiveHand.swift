@@ -5,8 +5,9 @@ public struct LiveHand: Sendable {
     public var hole: [DetectedCard]
     public var board: [DetectedCard]
     public var timestamp: Date
-    public init(hole: [DetectedCard],board: [DetectedCard],timestamp: Date) {
-        self.hole = hole; self.board = board; self.timestamp = timestamp
+    public var isReview: Bool
+    public init(hole: [DetectedCard],board: [DetectedCard],timestamp: Date,isReview: Bool = false) {
+        self.hole = hole; self.board = board; self.timestamp = timestamp; self.isReview = isReview
     }
     public var combination: String? {
         let cards = (hole+board).map(\.card)
@@ -81,6 +82,23 @@ public enum CardGrouping {
             return HandSelection(hole:[],board:[],issue:"Cannot identify your cards below the board.")
         }
         return HandSelection(hole:pair,board:board,issue:nil)
+    }
+    /// Only full-size faces in the board area above the previously confirmed hero seat.
+    public static func reviewBoard(_ cards: [DetectedCard],anchor: [UnitRect]) -> [DetectedCard]? {
+        guard anchor.count == 2 else { return nil }
+        let center = anchor.map { $0.rect.midX }.reduce(0,+)/2
+        let height = anchor.map(\.height).reduce(0,+)/2
+        let top = anchor.map(\.y).min()!
+        let span = anchor[1].rect.maxX-anchor[0].x
+        let candidates = cards.filter {
+            (0.6...1.6).contains($0.bounds.height/height) &&
+            abs($0.bounds.rect.midX-center) < span*2 &&
+            $0.bounds.rect.midY < top-height*0.2 && $0.bounds.y > top-height*6
+        }
+        let rows = groups(candidates)
+        guard rows.count <= 1, rows.allSatisfy({ (3...5).contains($0.count) }) else { return nil }
+        let board = rows.first ?? []
+        return Set(board.map(\.card)).count == board.count ? board : nil
     }
     private static func groups(_ cards: [DetectedCard]) -> [[DetectedCard]] {
         var rows = [[DetectedCard]]()

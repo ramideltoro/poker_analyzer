@@ -1,4 +1,5 @@
 import Foundation
+import CPokerEvaluator
 
 public enum Suit: String, Codable, CaseIterable, Sendable {
     case clubs = "c", diamonds = "d", hearts = "h", spades = "s"
@@ -37,6 +38,30 @@ public struct HandRank: Comparable, Equatable, Sendable {
 public enum Evaluator {
     // Evaluate 5–7 cards directly, selecting the best five within each category.
     public static func evaluate(_ cards: [Card]) -> HandRank {
+        precondition((5...7).contains(cards.count) && Set(cards).count == cards.count)
+        let ids = cards.map { Int32(($0.rank-2)*4+Suit.allCases.firstIndex(of:$0.suit)!) }
+        let score: Int32
+        switch ids.count {
+        case 5: score = evaluate_5cards(ids[0],ids[1],ids[2],ids[3],ids[4])
+        case 6: score = evaluate_6cards(ids[0],ids[1],ids[2],ids[3],ids[4],ids[5])
+        default: score = evaluate_7cards(ids[0],ids[1],ids[2],ids[3],ids[4],ids[5],ids[6])
+        }
+        let category: Int
+        switch score {
+        case 1...10: category = 8
+        case 11...166: category = 7
+        case 167...322: category = 6
+        case 323...1599: category = 5
+        case 1600...1609: category = 4
+        case 1610...2467: category = 3
+        case 2468...3325: category = 2
+        case 3326...6185: category = 1
+        default: category = 0
+        }
+        return HandRank(value:7463-Int(score),category:category)
+    }
+    /// Independent readable evaluator retained as a validation oracle.
+    public static func referenceEvaluate(_ cards: [Card]) -> HandRank {
         precondition((5...7).contains(cards.count) && Set(cards).count == cards.count)
         var counts = [Int](repeating: 0, count: 15)
         var suits = [Suit: [Int]]()

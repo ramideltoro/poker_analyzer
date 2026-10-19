@@ -1,0 +1,7 @@
+PH Evaluator by Henry Lee, Copyright 2016–2023 Henry Lee.
+Source: https://github.com/HenryRLee/PokerHandEvaluator (develop archive downloaded 2026-10-18).
+Apache License 2.0; the complete license accompanies this notice.
+The unmodified C 5/6/7-card evaluator and required lookup tables are included in Sources/CPokerEvaluator.
+A small public C declaration header and Swift adapter were added by this project.
+Omaha evaluators/tables are downloaded in the original archive but not linked: this app supports Hold’em.
+Resolved develop commit at download: 10be452e4c1ee40a6a56f06457f46bff27ca495a.

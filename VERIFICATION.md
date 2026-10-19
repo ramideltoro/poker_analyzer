@@ -1,4 +1,24 @@
-# Live Card Reader 0.7.0 verification
+# Live Card Reader 0.8.0 verification
+
+## Reference data and post-fold review
+
+The PH Evaluator Apache-2.0 C lookup tables now rank five, six and seven cards directly. The independent Swift evaluator remains a test oracle. Thirty thousand deterministic random hand pairs across all three lengths agree on category, ordering and ties. Both UCI data files were fully imported: all 1,025,010 valid rows match their published labels, including the separate royal-flush label. Runtime charts retain the standard nine categories.
+
+Sampled equity now uses 100,000 local deals. On this Mac, seeded preflop checks took about 0.11 seconds heads-up and 0.26 seconds against eight random opponents. The conservative individual 95% Hoeffding bound is about ±0.43 percentage points. These are engine-only timings, not end-to-end screen latency guarantees. Heads-up river still enumerates all 990 legal opponent hands exactly. Historical corpus size does not determine simulation sample count or remove opponent-range uncertainty.
+
+Every PHH GitHub archive record is read. Supported Hold’em histories contribute aggregate class information after identity filtering. Repeated venue/hand IDs with identical actions count once; conflicting groups are quarantined in full. Raw counts, repeated IDs, conflicting groups, excluded variants and invalid known-card samples are retained in JSON. The import supports string and numeric IDs, multiline action arrays and comments. Small synthetic importer fixtures test exact repeats, conflicting histories, multiline comments and royal-flush labels. See docs/DATA_QUALITY.md for evidence and limits.
+
+The review tracker stores a confirmed pair explicitly as saved counterfactual input. Stable missing hole cards plus the anchored visible board/folded-seat observation start review. Stable board extensions recompute probabilities with those saved cards and the current confirmed remaining-opponent count. Pot and stack OCR can use the saved seat geometry without recognized hero faces. Call EV, call threshold and eligible-pot context remain the last decision; no new call estimate or current betting context is exposed after folding.
+
+Tests cover preflop-to-flop review, flop-to-turn-to-river continuation, first-frame gaps, partial hero faces, duplicate collisions, replaced/cleared boards, explicit reset and new-hand replacement. A full app-model regression sends consecutive scans through card confirmation, review, opponent/table updates and the next hand. The last decision EV stays unchanged while probabilities update. Existing stale/Stop/capture-loss clearing is retained. Supplied table crops also verify that anchored table OCR retains pot and all stacks when recognized hero faces are absent.
+
+New hand details enumerate 1,081 flop runouts or 46 turn rivers, display category-improving cards and probabilities, and describe starting class and board texture. These are category improvements, including board-only improvement, not guaranteed winning outs. Tests compare turn counts to the independent evaluator and cover invalid cards, final rivers, canonical classes, paired/full-house/quads board textures and corpus invariants.
+
+Synthetic offscreen NSHostingView renders of empty, live, review and held states were inspected. The hand details panel, labels, charts and seat rows keep reserved heights; the layout regression still checks identical height across asynchronous empty/live/updating/manual transitions at two widths. No live Bovada browser, monitor or reader pixels were inspected through tools. All image replay uses user-supplied evidence or synthetic fixtures, and no wagering is used.
+
+Final optimized suite: 81 scheduled, 79 passed, two optional older full-screenshot replays skipped, zero failures (about 11.20 seconds). All bundled fixture tests and the two available private full screenshots pass. The final corpus contains 21,615,552 accepted Hold’em histories after quarantining 547 records in 147 conflicting ID groups; all 1,025,010 UCI rows match. The C++ importer synthetic fixtures also pass. The Apple silicon v0.8.0 (build 14) app is staged and ad-hoc signed; the bundle includes the reference summary and all third-party notices.
+
+# Earlier verification
 
 ## Stable dashboard and probability charts
 

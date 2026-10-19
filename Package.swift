@@ -6,7 +6,8 @@ let package = Package(
     platforms: [.macOS("15.2")],
     products: [.executable(name:"MacPokerCoach",targets:["MacPokerCoach"])],
     targets: [
-        .target(name:"PokerCore"),
+        .target(name:"CPokerEvaluator"),
+        .target(name:"PokerCore",dependencies:["CPokerEvaluator"],resources:[.copy("Resources")]),
         .target(name:"TableRecognition",dependencies:["PokerCore"]),
         .executableTarget(name:"MacPokerCoach",dependencies:["PokerCore","TableRecognition"]),
         .testTarget(name:"PokerCoreTests",dependencies:["PokerCore"]),

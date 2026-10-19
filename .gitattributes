@@ -1,0 +1,2 @@
+# Preserve original third-party license and dataset-document bytes, including CRLF.
+ThirdParty/** -whitespace

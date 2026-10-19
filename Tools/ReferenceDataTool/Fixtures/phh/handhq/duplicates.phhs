@@ -1,0 +1,15 @@
+[1]
+variant = 'NT'
+actions = ['d dh p1 AhKh', 'd db QhJhTh', 'd db 2c', 'd db 3d']
+hand = 1
+venue = 'Test'
+[2]
+variant = 'NT'
+actions = ['d dh p1 AhKh', 'd db QhJhTh', 'd db 2c', 'd db 3d']
+hand = 1
+venue = 'Test'
+[3]
+variant = 'PO'
+actions = ['d dh p1 AhKhQhJh']
+hand = 2
+venue = 'Test'

@@ -58,7 +58,7 @@ public enum EquityEngine {
     private static let deck = Suit.allCases.flatMap { suit in (2...14).map { Card(rank:$0,suit:suit) } }
 
     /// All legal opponent hole-card combinations are equally likely. No betting-range inference.
-    public static func calculate(hole: [Card],board: [Card],opponents: Int,samples: Int = 12_000,
+    public static func calculate(hole: [Card],board: [Card],opponents: Int,samples: Int = 100_000,
                                  seed: UInt64 = UInt64.random(in:1...UInt64.max),exactRiver: Bool = true,
                                  cancelled: @Sendable () -> Bool = { false }) throws -> EquityResult {
         let known = hole+board

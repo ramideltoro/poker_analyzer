@@ -22,7 +22,7 @@ struct HandAnalysisView: View {
                     Text("Includes your share of tied pots.").font(.caption2).foregroundStyle(.secondary)
                 }.frame(maxWidth:.infinity,alignment:.leading)
                 VStack(alignment:.leading,spacing:6) {
-                    Text("Call / check EV · expected dollars").font(.caption).foregroundStyle(.secondary)
+                    Text(analysis.isReview ? "Last decision EV · saved dollars" : "Call / check EV · expected dollars").font(.caption).foregroundStyle(.secondary)
                     number(analysis.display.estimate.map { dollars($0.value) },current:analysis.estimateIsCurrent)
                     Text(analysis.display.estimate.map { "95% sampling range: \(dollars($0.lower)) to \(dollars($0.upper))" } ?? "Sampling range: —")
                         .font(.caption2).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
@@ -42,6 +42,7 @@ struct HandAnalysisView: View {
                 Text(analysis.display.table.map { "\($0.activeOpponents.count) detected" } ?? "— detected").font(.caption).monospacedDigit().frame(width:100,alignment:.trailing)
                 Stepper(value:Binding(get:{ analysis.opponents },set:{ analysis.setOpponents($0) }),in:1...8) { Text("Manual: \(analysis.opponents)").font(.caption) }.fixedSize().disabled(analysis.automatic)
             }.frame(height:26)
+            handDetails
             seatTable
             Text(analysis.amountHelp).font(.caption2).foregroundStyle(.secondary).lineLimit(2).frame(height:34,alignment:.topLeading).frame(maxWidth:.infinity,alignment:.leading)
             metricGuide
@@ -107,14 +108,37 @@ struct HandAnalysisView: View {
         guard let seat, !seat.isHero, seat.activity == .active, let stack = seat.stackCents, let hero = analysis.display.table?.hero?.stackCents else { return nil }
         return min(stack,hero)
     }
+    private var handDetails: some View {
+        let hole = analysis.display.hand?.hole.map(\.card) ?? []
+        let board = analysis.display.hand?.board.map(\.card) ?? []
+        let starting = HandDetails.startingClass(hole)
+        let reference = starting.flatMap { ReferenceData.shared?.classes[$0] }
+        return VStack(alignment:.leading,spacing:7) {
+            Text("HAND DETAILS · \(starting ?? "—")").font(.system(size:10,weight:.semibold)).tracking(1)
+            Text("Current hand: \(analysis.details?.madeHand ?? "Two hole cards / waiting for flop")").font(.caption)
+            Text(HandDetails.texture(board)).font(.caption2).foregroundStyle(.secondary)
+            Text("Higher category next card: \(analysis.details?.nextCardImprovement.map(percent) ?? "—") · by river: \(analysis.details?.riverImprovement.map(percent) ?? "—")")
+                .font(.caption).monospacedDigit()
+            Text(analysis.details.map { "\($0.improvingCards.count) category-improving cards · \($0.runouts) exact runouts. These can improve the board alone; they are not guaranteed winning outs." } ?? "Exact improvement probabilities become available on the flop and turn.")
+                .font(.caption2).foregroundStyle(.secondary).lineLimit(2).frame(height:30,alignment:.topLeading)
+            Text("Next-card improvements: \(analysis.details?.improvingCards.map(\.display).joined(separator:" ") ?? "—")")
+                .font(.caption2).foregroundStyle(.secondary).lineLimit(2).frame(height:30,alignment:.topLeading)
+            Text(reference.map { "Historical \(starting ?? "") samples: \($0.known.formatted()) revealed hands · \($0.river.formatted()) with a full board. Most common recorded finish: \($0.mostCommonFinish)." } ?? "Historical starting-hand samples: —")
+                .font(.caption2).monospacedDigit().lineLimit(1)
+            Text(ReferenceData.shared.map { "Curated archive: \($0.hands.formatted()) Hold’em hands. Revealed-card samples are biased and historical; they do not determine live equity." } ?? "Reference archive is unavailable in this build.")
+                .font(.caption2).foregroundStyle(.secondary).lineLimit(2).frame(height:30,alignment:.topLeading)
+        }.padding(12).frame(maxWidth:.infinity,alignment:.leading).frame(height:250,alignment:.topLeading)
+            .background(Color.white.opacity(0.025),in:RoundedRectangle(cornerRadius:8))
+    }
     private var metricGuide: some View {
+
         VStack(alignment:.leading,spacing:7) {
             Text("WHAT THE NUMBERS MEAN").font(.system(size:10,weight:.semibold)).tracking(1)
             Text("Equity is your average pot share. Win/tie/lose describe the showdown result; final-hand bars describe your best five cards, even when the board supplies them.")
             Text("Call EV is equity × (eligible pot + call) − call, measured from this decision. Prior bets are sunk. The call threshold is the equity needed for zero EV. A Check value assumes no later betting.")
             Text("Remaining stacks are chips behind. Effective stack is the smaller of your stack and that opponent’s stack; it limits possible future betting, not the money already in the pot.")
             Text("The 95% bound covers simulation noise for each metric, not reading errors or opponent-range uncertainty. Opponents are random legal hands; future bets, folds and rake are excluded. Side pots still need contribution history.")
-            Text("Muted numbers and bars are previous confirmed readings while the screen updates. They are never reused as current calculation inputs. Stop, capture loss or a confirmed changed hand clears them. Hover over a bar or amount for its definition.")
+            Text("Saved-card review keeps your confirmed hole cards after they disappear and updates what-if equity with the visible board and remaining opponents. Last decision EV stays frozen. Board clearing or replacement ends updates; capture loss clears readings. Hidden cards cannot confirm hand identity, so review is hypothetical.")
         }.font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
     }
 }
