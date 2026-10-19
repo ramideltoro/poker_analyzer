@@ -69,7 +69,7 @@ final class TableReadingTests: XCTestCase {
 }
 
 extension TableReadingTests {
-    func practiceTable(seatCount: Int,sidePot: Bool = false) -> (CGImage,[DetectedCard]) {
+    func practiceTable(seatCount: Int,sidePot: Bool = false,betSize: CGFloat = 20) -> (CGImage,[DetectedCard]) {
         let scene = NSImage(size:NSSize(width:1200,height:1000))
         scene.lockFocus()
         NSColor(calibratedRed:0.04,green:0.19,blue:0.19,alpha:1).setFill(); NSRect(x:0,y:0,width:1200,height:1000).fill()
@@ -99,7 +99,7 @@ extension TableReadingTests {
         if sidePot { text("Main pot: $2.00",510,383,22); text("Side pot: $1.00",510,416,22) }
         box(520,920,190,78,NSColor(calibratedWhite:0.04,alpha:1)); text("CALL",584,929,21); text("$0.75",584,958,21)
         box(740,920,190,78,NSColor(calibratedWhite:0.04,alpha:1)); text("RAISE TO",775,929,21); text("$1.50",801,958,21)
-        text("$1.25",ring[0].0,ring[0].1+85,20); text("$0.50",586,690,20)
+        text("$1.25",ring[0].0,ring[0].1+85,betSize); text("$0.50",586,690,betSize)
         scene.unlockFocus()
         let image = scene.cgImage(forProposedRect:nil,context:nil,hints:nil)!
         let cards = ["Ah","Kd"].enumerated().map { DetectedCard(card:Card($0.element)!,bounds:UnitRect(x:Double(526+$0.offset*77)/1200,y:0.735,width:70.0/1200,height:0.104)) }
@@ -121,5 +121,14 @@ extension TableReadingTests {
         let (image,cards) = practiceTable(seatCount:6,sidePot:true)
         let table = try XCTUnwrap(TableStateDetector().scan(image,cards:cards))
         XCTAssertTrue(table.sidePots); XCTAssertNotNil(table.incompleteReason)
+    }
+}
+
+extension TableReadingTests {
+    func testLargeChipBetsInsideTheTableAreNotMisidentifiedAsMissingStacks() throws {
+        let (image,cards) = practiceTable(seatCount:6,betSize:34)
+        let table = try XCTUnwrap(TableStateDetector().scan(image,cards:cards))
+        XCTAssertEqual(table.hero?.betCents,50); XCTAssertEqual(table.activeOpponents.first?.betCents,125)
+        XCTAssertNil(table.incompleteReason,"\(table)")
     }
 }

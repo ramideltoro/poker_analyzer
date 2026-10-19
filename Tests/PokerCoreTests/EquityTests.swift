@@ -57,3 +57,36 @@ final class EquityTests: XCTestCase {
         XCTAssertThrowsError(try CallEstimate(equity:equity,potBeforeCall:0,call:1))
     }
 }
+
+extension EquityTests {
+    func testProbabilityPartitionsForExactWinTieAndLoss() throws {
+        let result = try EquityEngine.calculate(hole:cards("Kh Kd"),board:cards("Ah Ad Ac 2s 3s"),opponents:1)
+        let p = try XCTUnwrap(result.outcomes)
+        XCTAssertEqual(p.win,945.0/990,accuracy:1e-12); XCTAssertEqual(p.tie,1.0/990,accuracy:1e-12)
+        XCTAssertEqual(p.lose,44.0/990,accuracy:1e-12)
+        XCTAssertEqual(result.equity,p.win+p.tie/2,accuracy:1e-12)
+        XCTAssertEqual(result.categoryProbabilities,[0,0,0,0,0,0,1,0,0])
+        let nuts = try EquityEngine.calculate(hole:cards("Th 9h"),board:cards("Ah Kh Qh Jh 2c"),opponents:1)
+        XCTAssertEqual(nuts.outcomes,ShowdownProbabilities(win:1,tie:0,lose:0))
+        XCTAssertEqual(nuts.categoryProbabilities,[0,0,0,0,0,0,0,0,1])
+    }
+    func testMultiwayTieProbabilityIsDifferentFromPotShare() throws {
+        let result = try EquityEngine.calculate(hole:cards("2c 3d"),board:cards("As Ks Qs Js Ts"),opponents:2,samples:512,seed:7)
+        XCTAssertEqual(result.outcomes,ShowdownProbabilities(win:0,tie:1,lose:0))
+        XCTAssertEqual(result.equity,1.0/3,accuracy:1e-12)
+        XCTAssertEqual(result.categoryProbabilities,[0,0,0,0,0,0,0,0,1])
+    }
+    func testPreflopAndFlopHandCategoriesAndOutcomesSumToOne() throws {
+        for board in [[],cards("2h 7d Tc")] {
+            let result = try EquityEngine.calculate(hole:cards("As Ah"),board:board,opponents:3,samples:2048,seed:191)
+            let p = try XCTUnwrap(result.outcomes)
+            XCTAssertEqual(p.win+p.tie+p.lose,1,accuracy:1e-12)
+            XCTAssertEqual(result.categoryProbabilities.count,9)
+            XCTAssertEqual(result.categoryProbabilities.reduce(0,+),1,accuracy:1e-12)
+            XCTAssertTrue(result.categoryProbabilities.allSatisfy { (0...1).contains($0) })
+            XCTAssertEqual(result.categoryProbabilities[0],0,"Pocket aces cannot finish as high card")
+            XCTAssertGreaterThanOrEqual(result.equity,p.win)
+            XCTAssertLessThanOrEqual(result.equity,p.win+p.tie)
+        }
+    }
+}

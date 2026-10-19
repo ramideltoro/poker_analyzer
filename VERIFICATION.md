@@ -1,4 +1,18 @@
-# Live Card Reader 0.6.0 verification
+# Live Card Reader 0.7.0 verification
+
+## Stable dashboard and probability charts
+
+Version 0.7.0 keeps labels, metric cells, both probability charts and all nine seat slots in place across empty, live, updating and manual states. Header/status heights and chart rows are fixed; numbers use monospaced digits and identity transitions. Card tiles retain the same dark background when values arrive or disappear. The default window is 1040×960 and the complete dashboard scrolls. Offscreen NSHostingView renders of synthetic empty, live and updating states were inspected. A permanent layout test verifies identical panel heights at 794 and 924 point content widths after asynchronous state updates.
+
+Live calculations and presentation history are separate. Missing or changed required inputs still invalidate current EV immediately. The dashboard can retain previous confirmed cards, probabilities, money and stacks as muted historical values, with an Updating/previous-hand label and last-EV age. These values are never used as current inputs. A confirmed changed hand/board, Stop, capture invalidation or stale capture clears presentation history. A 16-entry in-memory cache keyed by cards and opponent count reuses mathematically identical results and avoids repeated random Monte Carlo fluctuations after recognition gaps. Cached results remain subject to current opponent/card confirmation; they do not preserve old money or authorize stale EV.
+
+Missing action controls now produce a specific waiting message instead of the generic incomplete-state headline. Probability computation can continue while current call EV waits for a readable Call/Check button. Unreadable inactive-seat stacks no longer interrupt the relevant EV confirmation; active-seat stacks, active-player activity, current pot/call and eligibility checks remain required. A known seat-to-center chip-bet geometry check avoids classifying every large monetary label as a missing stack. A practice-image regression verifies large current bets still parse. Other unmatched large labels retain the conservative ambiguity check. Side pots and unsupported all-ins still pause current EV.
+
+The probability engine tallies outright win, tied-for-best and loss outcomes and all nine mutually exclusive best-five-card final categories from the same deals as equity. A lost hand tied with another loser counts as a loss; multiway top ties count as ties while equity receives only the fractional pot share. The heads-up river path counts all 990 legal opponent hands exactly. Final category probabilities use the board and hole cards, including playing the board, and do not imply a win. Each displayed sampled metric has the existing individual 95% Hoeffding bound; the collection of bars has no claimed simultaneous 95% coverage.
+
+The charts use fixed 0–100% tracks and labels for all outcomes/categories, plus equity and calling threshold. The threshold is explicitly a cost requirement. Hover definitions and the visible guide explain every metric, remaining/effective stacks, eligible pot, incremental EV, previous-reading styling and model assumptions.
+
+The final optimized suite schedules 71 cases: 69 passed, two optional old full-screenshot tests skipped, zero failures (about 9.84 seconds). New cases verify outcome/category normalization, exact outcome counts, three-way 100% ties versus one-third equity, deterministic category outcomes, same-input reuse, inactive-stack jitter, missing controls, historical/current separation, changed-hand clearing, stale-capture clearing and fixed layout. The screenshot and all 52 generated-card regressions still pass. This verifies fixture and offscreen behavior; no live Bovada screen was captured through tools and no wagering was used.
 
 ## Automatic table inputs and stack-aware single-pot EV
 

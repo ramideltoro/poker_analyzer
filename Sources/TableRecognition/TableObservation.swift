@@ -37,7 +37,8 @@ public struct TableObservation: Sendable, Equatable {
     public var incompleteReason: String? {
         if let issue { return issue }
         guard (2...9).contains(seats.count), seats.filter(\.isHero).count == 1 else { return "Cannot identify all occupied seats and your stack." }
-        guard seats.allSatisfy({ $0.stackCents != nil && $0.activity != .unknown }) else { return "A player stack or card-back reading is unclear." }
+        guard seats.allSatisfy({ $0.activity != .unknown }) else { return "Confirming which players are still in the hand." }
+        guard seats.filter({ $0.isHero || $0.activity == .active }).allSatisfy({ $0.stackCents != nil }) else { return "Reading the stacks of players still in the hand." }
         guard let potCents, potCents > 0 else { return "Waiting for a readable total pot." }
         guard let callCents, callCents >= 0 else { return "Waiting for a readable Call or Check button." }
         guard !activeOpponents.isEmpty else { return "Waiting for another player’s visible cards." }
@@ -56,6 +57,13 @@ public struct TableObservation: Sendable, Equatable {
             abs(a.bounds.rect.midX-b.bounds.rect.midX) < 0.015 && abs(a.bounds.rect.midY-b.bounds.rect.midY) < 0.015
         }
     }
+    /// Inactive players' remaining chips do not change current-pot EV. Ignore their OCR jitter.
+    public func agreesForAnalysis(with other: TableObservation) -> Bool {
+        var a = self, b = other
+        for i in a.seats.indices where !a.seats[i].isHero && a.seats[i].activity != .active { a.seats[i].stackCents = nil; a.seats[i].betCents = nil }
+        for i in b.seats.indices where !b.seats[i].isHero && b.seats[i].activity != .active { b.seats[i].stackCents = nil; b.seats[i].betCents = nil }
+        return a.agrees(with:b)
+    }
 }
 
 public struct TableReadingStabilizer {
@@ -64,7 +72,7 @@ public struct TableReadingStabilizer {
     public mutating func reset() { previous = nil }
     public mutating func accept(_ reading: TableObservation?) -> TableObservation? {
         defer { previous = reading }
-        guard let reading, let previous, reading.agrees(with:previous) else { return nil }
+        guard let reading, let previous, reading.agreesForAnalysis(with:previous) else { return nil }
         return reading
     }
 }

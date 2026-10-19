@@ -7,7 +7,7 @@ import AppKit
     var body: some Scene {
         WindowGroup("Live Card Reader") {
             RootView(model:model).preferredColorScheme(.dark).frame(minWidth:850,minHeight:720)
-        }.defaultSize(width:980,height:820)
+        }.defaultSize(width:1040,height:960)
             .commands { CommandGroup(replacing:.newItem) {} }
     }
 }

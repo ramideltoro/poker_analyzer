@@ -45,7 +45,7 @@ import TableRecognition
     }
     func clear(_ reason: String,keepLayout: Bool = false) {
         generation = UUID(); busy = false; pending = nil; stabilizer.reset(keepLayout:keepLayout); hand = nil; faces = 0; lastScan = nil; status = reason
-        analysis.update(nil)
+        analysis.reset()
         log.write("readings_cleared",["reason":reason,"layout_retained":"\(stabilizer.hasLayout)"])
     }
     func expire(now: Date = Date()) {

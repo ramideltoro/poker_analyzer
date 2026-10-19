@@ -118,11 +118,11 @@ import TableRecognition
         var cases = [TableObservation]()
         var t = table(); t.sidePots = true; cases.append(t)
         t = table(); t.callCents = nil; cases.append(t)
-        t = table(); t.seats[1].stackCents = nil; cases.append(t)
+        t = table(); t.seats[0].stackCents = nil; cases.append(t)
         t = table(); t.callCents = 2000; cases.append(t)
         for t in cases {
             m.update(hand(),table:t); m.update(hand(),table:t)
-            XCTAssertNil(m.callEstimate); XCTAssertTrue(m.amountHelp.contains("Analysis incomplete"))
+            XCTAssertNil(m.callEstimate); XCTAssertFalse(m.amountHelp.isEmpty)
         }
         m.update(hand(),table:nil); XCTAssertNil(m.callEstimate); XCTAssertNil(m.result)
     }
@@ -154,5 +154,41 @@ import TableRecognition
         try await wait(app.analysis); XCTAssertTrue(app.analysis.tableConfirmed); XCTAssertNotNil(app.analysis.callEstimate)
         app.expire(now:now.addingTimeInterval(3))
         XCTAssertNil(app.analysis.table); XCTAssertNil(app.analysis.result); XCTAssertNil(app.analysis.callEstimate)
+        XCTAssertNil(app.analysis.display.hand); XCTAssertNil(app.analysis.display.estimate)
+    }
+}
+
+extension AutomaticAnalysisTests {
+    func testTransientGapsRetainPresentationButNeverLiveEVAndReuseEquity() async throws {
+        let m = model(); try await confirm(m,table())
+        let prior = m.display
+        m.update(hand(),table:nil)
+        XCTAssertNil(m.callEstimate); XCTAssertNil(m.result)
+        XCTAssertEqual(m.display.estimate,prior.estimate); XCTAssertEqual(m.display.result,prior.result)
+        XCTAssertFalse(m.estimateIsCurrent); XCTAssertFalse(m.equityIsCurrent)
+        m.update(hand(),table:table()); m.update(hand(),table:table())
+        XCTAssertEqual(m.result,prior.result,"A confirmed repeated math input reuses its simulation")
+        XCTAssertNotNil(m.callEstimate)
+        m.update(nil)
+        XCTAssertNil(m.result); XCTAssertNotNil(m.display.hand); XCTAssertFalse(m.estimateIsCurrent)
+        m.reset(); XCTAssertNil(m.display.hand); XCTAssertNil(m.display.estimate); XCTAssertNil(m.display.result)
+    }
+    func testWaitingForTurnAndInactiveStackNoiseDoNotInterruptEquityOrRelevantEV() async throws {
+        let m = model(); try await confirm(m,table())
+        var t = table(); t.seats[1].stackCents = nil
+        m.update(hand(),table:t)
+        XCTAssertTrue(m.tableConfirmed); XCTAssertNotNil(m.callEstimate)
+        XCTAssertEqual(m.display.table?.seats[1].stackCents,800,"Presentation retains the inactive stack")
+        t.callCents = nil; m.update(hand(),table:t); m.update(hand(),table:t)
+        XCTAssertNotNil(m.result); XCTAssertTrue(m.equityIsCurrent); XCTAssertNil(m.callEstimate)
+        XCTAssertNotNil(m.display.estimate); XCTAssertFalse(m.estimateIsCurrent)
+        XCTAssertTrue(m.displayStatus.contains("Waiting for Call / Check"))
+    }
+    func testChangedCardsNeverReuseOldHandPresentation() async throws {
+        let m = model(); try await confirm(m,table())
+        let changed = HandAnalysisTests().hand(["Qc","5c"])
+        m.update(changed,table:table())
+        XCTAssertNil(m.display.result); XCTAssertNil(m.display.estimate); XCTAssertNil(m.display.table)
+        XCTAssertEqual(m.display.hand?.hole.map { $0.card.code },["Qc","5c"])
     }
 }

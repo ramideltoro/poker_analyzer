@@ -75,7 +75,7 @@ public final class TableStateDetector: @unchecked Sendable {
             text.bounds.y < bottom && TableMoney.cents(text.value) != nil &&
             !panels.contains(where:{ $0.rect.insetBy(dx:-width*0.2,dy:-height*0.1).intersects(text.bounds.rect) })
         }
-        if amounts.contains(where:{ $0.bounds.height > height*0.28 }) {
+        if amounts.contains(where:{ $0.bounds.height > height*0.28 && !isChipBet($0.bounds,seats:seats,centerX:centerX,centerY:centerY,width:width,height:height) }) {
             issue = "A large monetary label could be an unrecognized player stack."
         }
         for text in amounts {
@@ -86,6 +86,17 @@ public final class TableStateDetector: @unchecked Sendable {
             }
         }
         return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue)
+    }
+    /// A bet sits inward from a known seat toward the felt center; a missing outer stack does not.
+    private func isChipBet(_ bounds: UnitRect,seats: [TableSeat],centerX: Double,centerY: Double,width: Double,height: Double) -> Bool {
+        let x = (bounds.rect.midX-centerX)/width, y = (bounds.rect.midY-centerY)/height
+        return seats.contains { seat in
+            let sx = (seat.bounds.rect.midX-centerX)/width, sy = (seat.bounds.rect.midY-centerY)/height
+            let length = sx*sx+sy*sy
+            guard length > 0 else { return false }
+            let t = (x*sx+y*sy)/length
+            return (0.15...0.88).contains(t) && hypot(x-t*sx,y-t*sy) < 1.1
+        }
     }
     private func labeledAmount(_ text: Text,_ prefix: String) -> Int? {
         guard text.confidence >= 0.95 else { return nil }
