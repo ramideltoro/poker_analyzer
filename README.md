@@ -1,8 +1,15 @@
-# Live Card Reader · 0.8.0
+# Live Card Reader · 0.9.0
 
 Continuously scans a monitor you select and automatically looks for visible playing-card faces. It displays your detected hole cards, community cards, current combination, local showdown equity and a simplified dollar EV for calling. It automatically reads the current pot, Call/Check controls, occupied players’ remaining stacks and visible card backs. There is one dashboard with Start/Stop, Show logs and an optional manual-input override. No card-area marking, stored layouts, action recommendations, automated betting or hand history.
 
+## Compact dashboard
+
+The main window fits in a single view at 1000×720 points or larger; the default is 1120×760. The probabilities/EV summary and made-hand/improvement details sit at the top, showdown and final-hand charts plus all nine player-stack rows occupy the middle, and your hole cards/community cards stay along the bottom. The main dashboard has no scroll container. Rounded panels, an outcome ring, compact bars, fixed metric slots and monospaced values keep live updates in place.
+
+Use the **?** button for metric definitions and assumptions. The **…** button in Hand Details opens the full improving-card list and historical sample information. Hover over a metric, bar or seat for its definition. Automatic/manual table controls, opponent selection, Start/Stop and the log icon are in the header. Long explanations and diagnostic details stay accessible without occupying the main reading area.
+
 ## Start
+
 
 For a fresh checkout, run `bash scripts/build-app.sh` first. The generated app is in `dist/Live Card Reader.app`; build outputs are excluded from Git. This project requires an Apple silicon Mac with macOS 15.2+ and Xcode installed.
 
@@ -47,23 +54,23 @@ The two fixed charts use a 0–100% scale. **Win outright** is the chance of bea
 
 The second chart displays the probability of finishing with each best-five-card category: high card, one pair, two pair, three of a kind, straight, flush, full house, four of a kind and straight flush (including royal flush). Exactly one category applies per deal, and the board can supply some or all of the best five cards. These probabilities sum to 100% before rounding and do not by themselves predict winning. Outcomes and categories are collected from the same simulation/enumeration as equity, including multiway splits.
 
-The in-app metric guide explains EV, pot/call/eligible pot, remaining/effective stacks, opponent assumptions and simulation uncertainty. Hover over a bar or amount for its individual definition. Sampled bars share the existing conservative 95% bound **for each metric individually**; this is not a simultaneous guarantee across every bar. Exact river enumeration has no simulation noise. Muted charts and amounts are visibly marked as previous confirmed readings while current data updates.
+The **?** help popover explains EV, pot/call/eligible pot, remaining/effective stacks, opponent assumptions and simulation uncertainty. Hover over a bar or amount for its individual definition. Sampled bars share the existing conservative 95% bound **for each metric individually**; this is not a simultaneous guarantee across every bar. Exact river enumeration has no simulation noise. Muted charts and amounts are visibly marked as previous confirmed readings while current data updates.
 
 ## Reference data and hand details
 
-Version 0.8.0 includes PH Evaluator lookup tables, an aggregate of the downloaded PHH Hold’em archive, and validation against all 1,025,010 UCI labeled hands. It adds current made hand, board texture, starting-hand class, exact flop/turn category-improvement probabilities, card lists and historical revealed-hand sample information. Historical samples are biased and do not determine live equity. Raw archives are local beside this project, outside Git; the compact summary and licenses ship in the app. See [reference data and review documentation](docs/REFERENCE_DATA.md) for scope, provenance, reproduction and post-fold limitations.
+Version 0.9.0 includes PH Evaluator lookup tables, an aggregate of the downloaded PHH Hold’em archive, and validation against all 1,025,010 UCI labeled hands. It adds current made hand, board texture, starting-hand class, exact flop/turn category-improvement probabilities, card lists and historical revealed-hand sample information. Historical samples are biased and do not determine live equity. Raw archives are local beside this project, outside Git; the compact summary and licenses ship in the app. See [reference data and review documentation](docs/REFERENCE_DATA.md) for scope, provenance, reproduction and post-fold limitations.
 
 ## Troubleshoot 0 faces
 
 Version 0.5.1 adds the supplied artwork's diamond silhouette, completing all four suit references. In the 7:20:45 PM screenshot, the previous version recognized the three spades on the board but rejected both hole-card diamonds because their suit matches were ambiguous. The updated reader detects 9-diamonds/5-diamonds and exactly 6-spades/4-spades/Q-spades at the original resolution and at 3840×2160, 2560×1440 and 1920×1080 with small pixel offsets. The previous A-clubs/J-hearts flop and Q-clubs/5-clubs crop also still pass. Acceptance thresholds are unchanged. These are image-replay checks; other live hands still need validation.
 
-Quit and reopen the app after updating; check **v0.8.0** at the bottom. Start screen sharing, leave the table visible for 10–15 seconds, then click **Show logs**. Finder selects this launch's `.jsonl` file. Attach that file for diagnosis. It is in `~/Library/Application Support/LiveCardReader/Logs/`.
+Quit and reopen the app after updating; check **v0.9.0** at the bottom. Start screen sharing, leave the table visible for 10–15 seconds, then click **Show logs**. Finder selects this launch's `.jsonl` file. Attach that file for diagnosis. It is in `~/Library/Application Support/LiveCardReader/Logs/`.
 
 Logs contain app/build/OS version, picker and permission-preflight events, capture errors, stream status codes, input dimensions, hint counts and accepted-face rectangles, received-frame counts, scan duration and frame age, exclusion coverage, candidate counts, rank/suit match scores and rejection categories. Table diagnostics add field-presence flags, detected/readable seat counts, confirmation state and generic incomplete reasons; they exclude amounts and recognized text. Per-candidate details record the rectangle, crop method, numeric match scores/margins and rejection stage, without predicted ranks or suits. The global permission preflight is diagnostic only; picker-authorized capture can work even when the global permission flag is false. Rejection counts describe attempts, which can include multiple proposals for the same shape.
 
 ## Repeated screen-recording permission dialog
 
-The v0.4.1 logs showed successful `capture_started` events followed immediately by `snapshot_error` code `-3801` (TCC permission denied). The extra screenshot request then stopped the approved stream. Version 0.4.2 removed that request, and the supplied v0.4.2 log confirms 82 incoming frames and completed scans without that error. Quit the old app completely and open `dist/Live Card Reader.app`; verify **v0.8.0** before clicking Start. Selecting a monitor in Apple's sharing picker for each new session is expected.
+The v0.4.1 logs showed successful `capture_started` events followed immediately by `snapshot_error` code `-3801` (TCC permission denied). The extra screenshot request then stopped the approved stream. Version 0.4.2 removed that request, and the supplied v0.4.2 log confirms 82 incoming frames and completed scans without that error. Quit the old app completely and open `dist/Live Card Reader.app`; verify **v0.9.0** before clicking Start. Selecting a monitor in Apple's sharing picker for each new session is expected.
 
 This development build is ad-hoc signed. Rebuilding changes its code identity, so an existing System Settings permission may refer to an earlier build. If macOS still explicitly requests global screen-recording access, remove the old Live Card Reader entry in System Settings → Privacy & Security → Screen & System Audio Recording, add the exact current app from `dist`, enable it and quit/reopen the app. Do not reset permissions for unrelated apps. Apple's explanation of development signing and privacy authorization is at https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements.
 

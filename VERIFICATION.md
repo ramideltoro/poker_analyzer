@@ -1,4 +1,18 @@
-# Live Card Reader 0.8.0 verification
+# Live Card Reader 0.9.0 verification
+
+## Compact dashboard
+
+Probabilities/EV and hand details are the first content row. Showdown outcomes, all nine final-category bars and the nine fixed player-stack slots share the middle row. Hole cards and community cards occupy a bottom dock. The main RootView has no ScrollView. The minimum content size is 1000×720 points; the default is 1120×760. Full-size cards, labels, table rows and chart rows remain present in empty, live, updating, manual and saved-card-review states.
+
+The design uses rounded gradient panels, a three-segment outcome ring with a text legend, compact category bars, native switches/steppers/popovers and monospaced numeric slots. The ring shows outright win probability, explicitly distinct from split-pot equity. EV and threshold keep their prior/current styling, including last-decision labels in review. Analysis, recognition, storage and probability calculations are unchanged.
+
+Long metric definitions are available through the question-mark help popover; full improving-card lists, historical sample counts and reference-corpus context are in the Hand Details ellipsis popover. Every metric retains a hover definition. Header controls expose automatic/manual mode, manual opponent count, logging and Start/Stop. The footer retains capture status/counters, with further metadata in its tooltip and logs.
+
+A layout regression measures the complete dashboard at widths 1000 and 1120 across empty, live, review, manual, large input values, nine occupied seats and reset states. Its intrinsic height stays within 720 points. The analysis panel also retains an identical height across asynchronous state changes. Offscreen synthetic NSHostingView renders at 1000×720 and 1120×760 were inspected for card placement, all chart/seat rows, review styling and large manual values. This is synthetic UI verification; no live browser or monitor contents were inspected.
+
+Final optimized suite: 82 scheduled, 80 passed, two optional older full-image replays skipped, zero failures (about 12.55 seconds). Existing recognition, equity/EV, fold-review and privacy tests still pass. Apple silicon v0.9.0 (build 15) is packaged and ad-hoc signed.
+
+# Earlier v0.8.0 verification
 
 ## Reference data and post-fold review
 

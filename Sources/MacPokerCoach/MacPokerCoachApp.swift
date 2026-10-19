@@ -6,8 +6,8 @@ import AppKit
     init() { NSApplication.shared.setActivationPolicy(.regular) }
     var body: some Scene {
         WindowGroup("Live Card Reader") {
-            RootView(model:model).preferredColorScheme(.dark).frame(minWidth:850,minHeight:720)
-        }.defaultSize(width:1040,height:960)
+            RootView(model:model).preferredColorScheme(.dark).frame(minWidth:1000,minHeight:720)
+        }.defaultSize(width:1120,height:760)
             .commands { CommandGroup(replacing:.newItem) {} }
     }
 }
