@@ -4,6 +4,8 @@ import TableRecognition
 
 struct HandAnalysisView: View {
     @ObservedObject var analysis: HandAnalysisModel
+    @ObservedObject var tracking: PlayTracking
+    @State private var tableTab = 0
     @State private var showingDetails = false
     var height: CGFloat = DashboardStyle.analysisHeight
     private func percent(_ value: Double) -> String { String(format:"%.1f%%",value*100) }
@@ -23,7 +25,12 @@ struct HandAnalysisView: View {
                         CallThresholdPanel(analysis:analysis,height:layout.threshold)
                         FinalHandPanel(result:analysis.display.result,current:analysis.equityIsCurrent,height:layout.categories)
                     }.frame(width:layout.middleWidth)
-                    seatTable(height:layout.body).frame(width:layout.rightWidth)
+                    VStack(spacing:6) {
+                        Picker("Table details",selection:$tableTab) { Text("Stacks").tag(0); Text("Shown hands").tag(1) }
+                            .pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(height:24)
+                        if tableTab == 0 { seatTable(height:layout.body-30) }
+                        else { OpponentTrackingPanel(tracking:tracking,height:layout.body-30) }
+                    }.frame(width:layout.rightWidth,height:layout.body)
                 }.frame(height:layout.body)
                 statusLine.frame(height:24)
             }
@@ -219,6 +226,8 @@ struct AnalysisHelpButton: View {
                         Text("Higher-category improvement is exact on the flop/turn. It may improve the board for everyone and is not a list of guaranteed winning outs.")
                         Text("After your cards disappear, saved-card review updates what-if equity with the visible board and remaining opponents. Last decision EV stays frozen. Board clearing/replacement ends updates; capture loss clears readings. Hidden cards cannot confirm hand identity.")
                         Text("Muted values are previous confirmed readings. Keep one entire table visible, including your cards, pot, player stacks and action controls. Seat labels identify screen positions, not player identities.")
+                        Text("Minimum pot to call = call × (1 − equity) ÷ equity. Folding adds $0 more. Raising needs assumptions about extra chips, equity when called and fold frequency; use the scenario calculator. These prices do not account for later bets or rake.")
+                        Text("Shown-hand tracking continues without your cards while the table remains readable. Opponent profiles are memory-only and clear on lost continuity. Identical anonymous replacements can be invisible: use End table before switching tables. Your own observations persist locally. Observed net is measured at preflop chip checkpoints; top-ups and cash removals must be recorded to adjust it. No VPIP/PFR or inferred call/raise action is reported without reliable action evidence.")
                     }.font(.callout).padding(20).fixedSize(horizontal:false,vertical:true)
                 }.frame(width:430,height:520)
             }

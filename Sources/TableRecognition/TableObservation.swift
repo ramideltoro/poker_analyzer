@@ -1,4 +1,5 @@
 import Foundation
+import PokerCore
 
 public enum SeatActivity: String, Sendable, Equatable {
     case active, folded, sittingOut, waiting, unknown
@@ -19,8 +20,12 @@ public struct TableSeat: Sendable, Equatable, Identifiable {
     public var stackCents: Int?
     public var betCents: Int?
     public var activity: SeatActivity
-    public init(id: Int,bounds: UnitRect,isHero: Bool,stackCents: Int?,betCents: Int? = nil,activity: SeatActivity) {
+    public var seatNumber: Int?
+    public var isNewPlayer: Bool
+    public var revealedCards: [Card]
+    public init(id: Int,bounds: UnitRect,isHero: Bool,stackCents: Int?,betCents: Int? = nil,activity: SeatActivity,seatNumber: Int? = nil,isNewPlayer: Bool = false,revealedCards: [Card] = []) {
         self.id = id; self.bounds = bounds; self.isHero = isHero; self.stackCents = stackCents; self.betCents = betCents; self.activity = activity
+        self.seatNumber = seatNumber; self.isNewPlayer = isNewPlayer; self.revealedCards = revealedCards
     }
 }
 public struct TableObservation: Sendable, Equatable {
@@ -29,8 +34,10 @@ public struct TableObservation: Sendable, Equatable {
     public var seats: [TableSeat]
     public var sidePots: Bool
     public var issue: String?
-    public init(potCents: Int?,callCents: Int?,seats: [TableSeat],sidePots: Bool = false,issue: String? = nil) {
+    public var boardCards: [Card]
+    public init(potCents: Int?,callCents: Int?,seats: [TableSeat],sidePots: Bool = false,issue: String? = nil,boardCards: [Card] = []) {
         self.potCents = potCents; self.callCents = callCents; self.seats = seats; self.sidePots = sidePots; self.issue = issue
+        self.boardCards = boardCards
     }
     public var hero: TableSeat? { seats.first(where: \.isHero) }
     public var activeOpponents: [TableSeat] { seats.filter { !$0.isHero && $0.activity == .active } }

@@ -1,5 +1,6 @@
 import AppKit
 import Vision
+import PokerCore
 
 /// Reads only the table around the recognized hero cards. No browser integration or image persistence.
 public final class TableStateDetector: @unchecked Sendable {
@@ -45,7 +46,11 @@ public final class TableStateDetector: @unchecked Sendable {
             else if labels.contains(where:{ $0.contains("SITTING OUT") }) { activity = .sittingOut }
             else if labels.contains(where:{ $0.contains("NEW PLAYER") }) { activity = .waiting }
             else { activity = cardBackActivity(image,panel:panel,cards:cards) }
-            seats.append(TableSeat(id:0,bounds:panel,isHero:hero,stackCents:stack,activity:activity))
+            let badge = CGRect(x:panel.x,y:panel.y,width:panel.width*0.29,height:panel.height)
+            let numbers = texts.filter { $0.confidence >= 0.95 && badge.contains(CGPoint(x:$0.bounds.rect.midX,y:$0.bounds.rect.midY)) }
+                .compactMap { Int($0.value.trimmingCharacters(in:.whitespacesAndNewlines)) }.filter { (1...9).contains($0) }
+            seats.append(TableSeat(id:0,bounds:panel,isHero:hero,stackCents:stack,activity:activity,
+                                   seatNumber:numbers.count == 1 ? numbers[0] : nil,isNewPlayer:labels.contains { $0.contains("NEW PLAYER") }))
         }
         // Clockwise screen locations, with hero last to avoid angle wraparound from pixel jitter.
         // These IDs describe current geometry, not persistent player identities.
@@ -87,7 +92,10 @@ public final class TableStateDetector: @unchecked Sendable {
                 seats[nearest.0].betCents = TableMoney.cents(text.value)
             }
         }
-        return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue)
+        let board = CardGrouping.reviewBoard(cards,anchor:hole)?.map(\.card) ?? []
+        let reveals = RevealedCards.associate(cards:cards,seats:seats,known:board+(heroVisible ? selected.hole.map(\.card) : []))
+        for i in seats.indices { seats[i].revealedCards = reveals[i] }
+        return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue,boardCards:board)
     }
     /// A bet sits inward from a known seat toward the felt center; a missing outer stack does not.
     private func isChipBet(_ bounds: UnitRect,seats: [TableSeat],centerX: Double,centerY: Double,width: Double,height: Double) -> Bool {

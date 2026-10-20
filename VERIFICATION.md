@@ -1,3 +1,19 @@
+# Live Card Reader 0.11.0 verification
+
+## Dollar call prices and session / personal tracking
+
+The call-price panel shows the minimum eligible pot for the current call and decision equity. `DecisionPrice` algebraically inverts the same incremental EV formula as `CallEstimate`; zero call, zero equity, certain equity and invalid values are tested. It rounds displayed minimum pots up to a cent, labels sampling overlap and uses the saved decision snapshot in review. The separate heads-up raise scenario uses explicitly entered fold frequency, equity when called, additional risk and opponent additions. Folded and called outcomes are weighted separately; zero-fold/zero-equity and invalid-input tests are included. No legal raise-size or solver recommendation is claimed.
+
+Table observations now carry optional seat badges, NEW PLAYER markers, recognized board cards and seat-associated shown pairs. The recognition acceptance thresholds are unchanged. Pairs must be full-size, immediately above a unique opponent capsule, distinct from known cards, non-overlapping with other seat assignments and repeated in fresh observations. An offline test recomposes artwork from the supplied sanitized table fixture at an opponent seat, removes the hero faces and verifies recognition/assignment while anchored table reading continues. It does not inspect a live table. Single cards are rejected; brief, obstructed or unfamiliar reveals may be missed.
+
+Lifecycle tests cover shown hands after hero disappearance, same-round deduplication/board extensions, departure with renumbered screen-position IDs, replacement markers without repeatedly clearing the new profile, new arrivals, capture gaps, changed hero seat, table exit and preserving the remaining player’s UUID. Conflicting revealed pairs quarantine that seat’s observed round. A switch or anonymous replacement that leaves identical visible evidence cannot be proven; explicit End table / Clear seat controls and that limitation are visible in the app.
+
+Personal-history tests cover stable preflop chip checkpoints, positive/negative measured intervals, top-up correction and pending transfers, no invented final result, partial initial hands, deduplicated own decision estimates, atomic owner-only JSON storage, restart closure of unfinished records, no persisted opponent fields/cards, and preserving unreadable history. Opponent profiles are intentionally not Codable. The archive contains only hero records/table balances and is separate from metadata-only diagnostic logs. Observed net can include unrecorded cash movements; it is not an account statement. Missing hands/actions, unknown final payouts and undetectable identity changes remain explicit limitations. No inferred VPIP/PFR or aggression statistics are exposed.
+
+The dashboard retains the single-screen grid; Stacks / Shown hands share the right column and Play history opens a separate sheet. Offscreen synthetic renders and layout tests cover minimum, laptop and large-display sizes. Live Bovada pages/monitor pixels are not used for testing. Final optimized suite: 101 scheduled, 99 passed, two older optional original-image replays skipped, zero failures (14.66 seconds). The app is built for Apple silicon as v0.11.0 (build 17), ad-hoc signed and strictly verified. The packaged source excludes private screenshots, generated previews and personal history.
+
+# Earlier v0.10.0 verification
+
 # Live Card Reader 0.10.0 verification
 
 ## Full-window grid, hand details and threshold explanation

@@ -7,18 +7,22 @@ struct RootView: View {
     @ObservedObject var model: AppModel
     @ObservedObject private var capture: CaptureController
     @ObservedObject private var analysis: HandAnalysisModel
-    init(model: AppModel) { self.model = model; capture = model.capture; analysis = model.analysis }
+    @ObservedObject private var tracking: PlayTracking
+    @State private var showingHistory = false
+    init(model: AppModel) { self.model = model; capture = model.capture; analysis = model.analysis; tracking = model.tracking }
     var body: some View {
         GeometryReader { geometry in
             let layout = DashboardMetrics(size:geometry.size)
             VStack(spacing:layout.gap) {
                 header.frame(height:layout.header)
-                HandAnalysisView(analysis:analysis,height:layout.analysis)
+                HandAnalysisView(analysis:analysis,tracking:tracking,height:layout.analysis)
                 cardsDock(height:layout.cards).frame(height:layout.cards)
                 footer
             }.padding(layout.padding).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top)
         }.background(LinearGradient(colors:[Color(red:0.065,green:0.085,blue:0.13),DashboardStyle.background],startPoint:.topLeading,endPoint:.bottomTrailing))
             .transaction { $0.animation = nil }
+            .sheet(isPresented:$showingHistory) { TrackingSheet(tracking:tracking,endTable:{ model.stop(); tracking.endTable() }) }
+            .onReceive(NotificationCenter.default.publisher(for:NSApplication.willTerminateNotification)) { _ in tracking.endTable(); tracking.store.flush() }
     }
     private var header: some View {
         HStack(spacing:12) {
@@ -39,6 +43,7 @@ struct RootView: View {
                 if let window = NSApp.keyWindow, let screen = window.screen { window.setFrame(screen.visibleFrame,display:true,animate:false) }
             } label: { Image(systemName:"arrow.up.left.and.arrow.down.right") }.buttonStyle(.borderless).help("Fill the screen")
             AnalysisHelpButton()
+            Button { showingHistory = true } label: { Image(systemName:"chart.bar.xaxis") }.buttonStyle(.borderless).help("Opponent reveals and your saved play history").accessibilityLabel("Play history")
             Button { model.showLogs() } label: { Image(systemName:"doc.text.magnifyingglass") }.buttonStyle(.borderless).help("Show diagnostic logs").accessibilityLabel("Show logs")
             Button(capture.running || capture.choosing ? "Stop" : "Start",systemImage:capture.running || capture.choosing ? "stop.fill" : "play.fill") {
                 if capture.running || capture.choosing { model.stop() } else { model.start() }
@@ -63,6 +68,11 @@ struct RootView: View {
                     .font(.system(size:12,weight:.medium)).foregroundStyle(analysis.isReview ? .orange : DashboardStyle.accent)
                 Text(analysis.isReview ? "Your saved cards + the visible board.\nLast decision EV stays frozen." : "Keep the captured table unobstructed.\nMove or resize this dashboard if needed.")
                     .font(.system(size:10)).foregroundStyle(.secondary).multilineTextAlignment(.trailing).lineLimit(2)
+                Button { showingHistory = true } label: {
+                    Text("\(tracking.archive.hands.count) hands · net \(tracking.totalNetCents.map { String(format:"%+.2f USD",Double($0)/100) } ?? "—")*")
+                        .font(.system(size:10,design:.monospaced)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
+                }.buttonStyle(.plain).foregroundStyle(tracking.storageError == nil ? DashboardStyle.cyan : .orange)
+                    .help(tracking.storageError ?? "Observed net through confirmed preflop checkpoints. Record top-ups and cash removals in Play history. Unfinished intervals are excluded.")
             }.frame(width:210,alignment:.trailing)
         }.padding(.horizontal,16).padding(.vertical,8).frame(maxWidth:.infinity,maxHeight:.infinity).dashboardPanel()
     }

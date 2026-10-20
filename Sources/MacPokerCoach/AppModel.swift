@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import TableRecognition
+import Combine
 
 @MainActor final class AppModel: ObservableObject {
     @Published private(set) var hand: LiveHand?
@@ -14,6 +15,8 @@ import TableRecognition
     let capture: CaptureController
     let log: DiagnosticLog
     let analysis = HandAnalysisModel()
+    let tracking: PlayTracking
+    private var analysisObserver: AnyCancellable?
     var version: String { Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development" }
     private var stabilizer = ReadingStabilizer()
     private var reviewTracker = FoldReviewTracker()
@@ -24,8 +27,13 @@ import TableRecognition
     private let detector = AutomaticCardDetector()
     private let tableDetector = TableStateDetector()
     private let queue = DispatchQueue(label:"handreader.detection",qos:.userInitiated)
-    init(log: DiagnosticLog = .shared) {
+    init(log: DiagnosticLog = .shared,tracking: PlayTracking? = nil) {
         self.log = log; capture = CaptureController(log:log)
+        self.tracking = tracking ?? PlayTracking(persist:log === DiagnosticLog.shared)
+        analysisObserver = analysis.$display.sink { [weak self] display in
+            guard let self else { return }
+            self.tracking.recordDecision(display,current:self.analysis.estimateIsCurrent)
+        }
         log.write("app_launched",["version":Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development","build":Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "unknown","os":ProcessInfo.processInfo.operatingSystemVersionString,"privacy":"metadata_only_no_images_or_card_values"])
         capture.onFrame = { [weak self] image,time,excluded in self?.receive(image,time:time,excluded:excluded) }
         capture.onStarted = { [weak self] in self?.status = "Scanning the selected monitor for visible cards…" }
@@ -47,6 +55,7 @@ import TableRecognition
     func clear(_ reason: String,keepLayout: Bool = false) {
         generation = UUID(); busy = false; pending = nil; stabilizer.reset(keepLayout:keepLayout); hand = nil; faces = 0; lastScan = nil; status = reason
         reviewTracker.reset(); analysis.reset()
+        tracking.endTable(reason)
         log.write("readings_cleared",["reason":reason,"layout_retained":"\(stabilizer.hasLayout)"])
     }
     func expire(now: Date = Date()) {
@@ -97,6 +106,7 @@ import TableRecognition
         scanned += 1; faces = scan.cards.count; candidates = scan.rectangles; milliseconds = Int(scan.seconds*1000); lastScan = scan.timestamp
         let result = stabilizer.accept(scan)
         hand = reviewTracker.accept(live:result.0,scan:scan)
+        tracking.observe(table:scan.table,hand:hand,time:scan.timestamp)
         status = hand?.isReview == true ? "Saved hole cards · continuing visible-board what-if review" : result.1
         analysis.update(hand,table:scan.table)
         if scan.cards.isEmpty && !stabilizer.hasLayout { status = scan.diagnostics.summary }
