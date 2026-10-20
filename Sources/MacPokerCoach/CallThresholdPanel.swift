@@ -41,7 +41,7 @@ struct CallThresholdPanel: View {
                 Text(advice.title).font(.system(size:large ? 32 : 23,weight:.bold,design:.rounded)).foregroundStyle(advice.kind == nil ? .secondary : tint)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 Spacer(minLength:4)
-                Text(advice.marginal ? "CLOSE" : analysis.estimateIsCurrent ? "ESTIMATE" : "WAITING / SAVED")
+                Text(advice.marginal ? "CLOSE" : analysis.estimateIsCurrent ? advice.basis : "WAITING / SAVED")
                     .font(.system(size:8,weight:.semibold)).foregroundStyle(.secondary)
             }.frame(height:large ? 37 : 26)
             Text(advice.reason).font(.system(size:large ? 12 : 10)).foregroundStyle(.secondary).lineLimit(large ? 3 : 2)
@@ -56,7 +56,7 @@ struct CallThresholdPanel: View {
                 Text(price.map { "Call price: \(money($0.call)) · minimum pot \(money($0.minimumPot.map { ceil($0*100-1e-9)/100 }))" } ?? "Waiting for current decision inputs")
                     .font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8).frame(height:14)
             }
-            Text("Rule-based estimate · random hands · no later bets or rake.")
+            Text("Price model ≠ strategy EV · random hands · excludes later bets / rake.")
                 .font(.system(size:8)).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.8).frame(height:12)
         }.padding(8).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height)
             .dashboardPanel().transaction { $0.animation = nil }
@@ -88,6 +88,7 @@ struct DecisionScenarios: View {
             Text("\(analysis.estimateIsCurrent ? "Current" : "Saved / waiting") eligible pot: \(money(analysis.display.eligiblePotDollars)) · additional call: \(money(analysis.display.decisionCallDollars))")
                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
             Text("A call buys a share of money already in the pot. For a $1 call with 25% equity, the pot needs to be $3 before your call. A larger pot improves the call’s price; a smaller pot makes it worse in this simplified model.")
+            Text("Check-down EV assumes every counted opponent stays to showdown with no more chips added. A value raise can change who continues and how much they pay, so the AA/KK preflop rule is separate. Max call is not a maximum raise size. Opponents’ actual ranges remain unknown.")
             Text("Folding costs $0 more from this decision. Money already bet is sunk. A negative call EV favors folding over calling in this model, but checking is free when offered.")
             Divider()
             Text("Heads-up raise scenario").font(.headline)

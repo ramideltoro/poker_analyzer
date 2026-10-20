@@ -126,6 +126,17 @@ import TableRecognition
             uncapped = max(0,opponentBet-ownBet)
             guard quoted == min(uncapped,stack) || quoted == uncapped else { return nil }
         }
+        // A readable street wager is independent evidence for the Call label.
+        // Do not price a raise-to OCR error as an additional call, or combine
+        // money captured on opposite sides of a betting animation.
+        let bets = table.seats.compactMap(\.betCents)
+        guard bets.allSatisfy({ (0...100_000_000).contains($0) }), bets.reduce(0,+) <= pot else { return nil }
+        if let own = table.hero?.betCents {
+            let foeBets = table.activeOpponents.compactMap(\.betCents)
+            let gap = max(0,(foeBets.max() ?? 0)-own)
+            guard gap <= uncapped else { return nil }
+            if foeBets.count == table.activeOpponents.count, gap != uncapped { return nil }
+        }
         return try? StackCallContext(potCents:pot,uncappedCallCents:uncapped,heroStackCents:stack,
                                     opponentStackCents:table.activeOpponents.compactMap(\.stackCents),sidePots:table.sidePots)
     }
@@ -144,7 +155,7 @@ import TableRecognition
             guard let table else { return "Reading the table · last confirmed values stay muted while updating." }
             guard tableConfirmed else { return "Confirming table amounts and player activity across consecutive frames…" }
             if let issue = table.incompleteReason { return issue }
-            guard automaticContext != nil else { return "Checking all-in eligibility · waiting for both current bets." }
+            guard automaticContext != nil else { return "Checking pot / call consistency and all-in eligibility; waiting for current amounts and bets." }
             return "Pot, remaining stacks, active opponents and call amount read from the table."
         }
         if potText.isEmpty || callText.isEmpty { return "Enter the current pot and your call amount for dollar EV." }

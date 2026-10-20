@@ -14,7 +14,8 @@ public struct StackCallContext: Sendable, Equatable {
         let cost = min(uncappedCallCents,heroStackCents)
         let unmatched = uncappedCallCents-cost
         // Contribution history is required to assign multiway side pots when hero cannot cover a wager.
-        guard unmatched == 0 || opponentStackCents.count == 1, potCents > unmatched else { throw EquityError.invalidAmounts }
+        guard unmatched == 0 || opponentStackCents.count == 1, potCents > unmatched,
+              potCents-unmatched >= cost else { throw EquityError.invalidAmounts }
         self.potCents = potCents-unmatched; callCents = cost; unmatchedCents = unmatched
         effectiveStacks = opponentStackCents.map { min(heroStackCents,$0) }
     }

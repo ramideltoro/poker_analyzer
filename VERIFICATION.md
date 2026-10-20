@@ -1,3 +1,21 @@
+# Live Card Reader 0.12.1 verification
+
+## Preflop KK recommendation
+
+The user confirmed the reported KK fold occurred before the flop. No screenshot or recorded card/money values for that particular decision is available, so its exact readings cannot be reconstructed. A deterministic regression reproduces a real policy flaw: the old price-only rule folds KK in a nine-seat scenario with eight random opponents, a $1.20 pot and $1 additional call. The simulation keeps all eight opponents to showdown, so this simplified call comparison cannot establish that a preflop raise is bad. The evaluator itself is not changed; heads-up KK equity is checked against approximately 82.4% with a deterministic 100,000-deal simulation.
+
+The action policy now distinguishes an explicit premium AA/KK preflop value rule from the random-hand price model. It uses a confirmed quoted full raise-to size only with a readable own wager, conservative minimum-raise bound and sufficient chips on both sides. Missing, invalid, oversized or uncovered sizes do not create raises. Without a supported raise, a positive lower-bound call estimate may support CALL; a negative check-down price alone produces REVIEW rather than FOLD. Other negative preflop prices also require review because no position/range policy is implemented. The premium rule stops when a board appears. This is a limited cash-game heuristic, not an inference about a tight re-raising range or proof of optimal sizing. The qualitative rule is referenced in the README to PokerStars Learn.
+
+Dollar EV is explicitly labeled Check-down call EV. Sampling intervals spanning zero withhold the action and show REVIEW / CLOSE. Known opponent faces, conflicting available controls, unreadable active hero state, changed cards or unsupported current money suppress action advice. Automatic price validation checks that the pot can contain the call and readable street bets, and compares readable own/opponent bets with the extra-call quote. Existing supported all-in cap/unmatched-bet adjustments remain covered by their prior tests. Saved-card mode now says REVIEW rather than FOLDED / REVIEW, avoiding confusion with a live fold suggestion. Metadata-only logs add the chosen action, rule basis and close flag, without logging reasons, card values or monetary values.
+
+## Validation and limits
+
+Seven new regression tests cover actual 100,000-deal KK simulations against each of 1–8 random opponents; all six suit pairs of both AA and KK at six/nine-seat tables; unsupported raises and stack limits; a postflop KK fold in the price model; free checks, known shown aces and invalid controls; stale/review/new-hand transitions; and pot/call/street-bet contradictions. Existing marginal and logging-privacy tests are extended. Offscreen synthetic native renders at 1000×720 and 1900×1020 exercise the new preflop RAISE panel, its reason and the EV label. The temporary render harness and images are kept outside the delivered source. No live browser, monitor or reader pixels are accessed through tools and no wagering is used for validation.
+
+Final optimized release suite: **125 scheduled, 123 passed, two older optional original-image replays skipped, zero failures (17.11 seconds)**. The release app is **0.12.1 / build 19**. Recognition fixtures, continuous tracking, all-in math, stored history compatibility and the prior crop-crash regressions remain in that suite. This does not establish solver-optimal play, real-table recognition accuracy or live end-to-end correctness for the unrecorded incident. Opponents remain uniformly random in the equity engine; actual betting ranges, fold responses, future betting and rake are not modeled.
+
+# Earlier v0.12.0 verification
+
 # Live Card Reader 0.12.0 verification
 
 ## Reported crash

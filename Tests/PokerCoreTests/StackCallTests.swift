@@ -18,6 +18,7 @@ final class StackCallTests: XCTestCase {
         XCTAssertEqual(try a.estimate(half).value,1)
     }
     func testUnsupportedPotsAndInvalidAmountsDoNotProduceEV() {
+        XCTAssertThrowsError(try StackCallContext(potCents:50,uncappedCallCents:100,heroStackCents:2000,opponentStackCents:[1000]),"The displayed total pot must already contain at least the wager to match")
         XCTAssertThrowsError(try StackCallContext(potCents:1000,uncappedCallCents:500,heroStackCents:200,opponentStackCents:[0,300]))
         XCTAssertThrowsError(try StackCallContext(potCents:300,uncappedCallCents:100,heroStackCents:2000,opponentStackCents:[1000],sidePots:true))
         for stack in [-1,0,Int.max] { XCTAssertThrowsError(try StackCallContext(potCents:300,uncappedCallCents:100,heroStackCents:stack,opponentStackCents:[1000])) }
