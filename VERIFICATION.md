@@ -1,3 +1,11 @@
+# Live Card Reader 0.12.2 verification
+
+The suggested-action headline now derives exclusively from the typed optional `SeatAction`, rather than the internal status title. Supported decisions show CALL / FOLD / CHECK / BET / RAISE. A nil decision reserves the same headline space with an em dash, places NO SUGGESTION / TOO CLOSE / SAVED HAND in a separate status badge, and prefixes the existing explanation with No suggestion. Its accessibility label explicitly says when no suggested action is available. REVIEW and WAIT remain internal analysis/logging states; neither appears as a poker action. Existing rule thresholds, premium-pair policy, unsupported-input suppression and after-fold calculations are unchanged.
+
+The SwiftUI change compiles in the optimized Apple silicon release. All 25 selected action/advice/model/layout regression cases passed with zero failures (3.39 seconds); no new strategy or recognition claims are made. Fixed headline/reason/metric frames preserve the prior layout. No live browser, monitor or reader pixels are accessed through tools, and no wagering is used for validation. The installed release is 0.12.2 / build 20.
+
+# Earlier v0.12.1 verification
+
 # Live Card Reader 0.12.1 verification
 
 ## Preflop KK recommendation
