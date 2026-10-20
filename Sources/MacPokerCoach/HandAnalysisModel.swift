@@ -12,6 +12,7 @@ import TableRecognition
     @Published private(set) var automatic = true
     @Published private(set) var table: TableObservation?
     @Published private(set) var tableConfirmed = false
+    @Published private(set) var actionControlsConfirmed = false
     @Published private(set) var display = AnalysisDisplay()
     @Published private(set) var details: RunoutDetails?
     private var detailsKey: CardsKey?
@@ -25,10 +26,15 @@ import TableRecognition
     private var cardsKey: CardsKey?
     private var key: Key?
     private var current: LiveHand?
+    var currentHand: LiveHand? { current }
+    private var previousActionTable: TableObservation?
     private var tableStabilizer = TableReadingStabilizer()
     private var generation = UUID()
     private var worker: Task<EquityResult,Error>?
     private let calculate: Calculate
+    private var failedKey: Key?
+    private var failureCount = 0
+    private var retryNotBefore = Date.distantPast
 
     init(calculate: @escaping Calculate = { hole,board,opponents,cancelled in
         try EquityEngine.calculate(hole:hole,board:board,opponents:opponents,cancelled:cancelled)
@@ -65,7 +71,10 @@ import TableRecognition
         }
         if next != cardsKey {
             cardsKey = next; potText = ""; callText = ""; tableStabilizer.reset()
+            previousActionTable = nil
         }
+        actionControlsConfirmed = hand != nil && reading.map { next in previousActionTable?.agreesForActions(with:next) == true } == true
+        previousActionTable = hand == nil ? nil : reading
         if hand == nil { table = nil; tableConfirmed = false; tableStabilizer.reset() }
         else {
             table = reading
@@ -94,6 +103,8 @@ import TableRecognition
             }
         }
         guard next != key else { return }
+        if next != failedKey { failedKey = nil; failureCount = 0; retryNotBefore = .distantPast }
+        if next != nil, failedKey == next, Date() < retryNotBefore { return }
         invalidate(); key = next
         guard let next else { return }
         if let cached = cachedResults[next] { result = cached; return }
@@ -107,10 +118,14 @@ import TableRecognition
             self.worker = nil; self.calculating = false
             switch outcome {
             case .success(let result):
+                self.failedKey = nil; self.failureCount = 0
                 self.result = result; self.cachedResults[next] = result
                 self.cacheOrder.removeAll { $0 == next }; self.cacheOrder.append(next)
                 if self.cacheOrder.count > 16 { self.cachedResults.removeValue(forKey:self.cacheOrder.removeFirst()) }
-            case .failure: self.error = "Analysis unavailable for this reading. Waiting for new cards."
+            case .failure:
+                self.key = nil; self.failedKey = next; self.failureCount += 1
+                self.retryNotBefore = Date().addingTimeInterval(min(2,Double(self.failureCount)*0.25))
+                self.error = "The calculation was interrupted. Retrying automatically while the current hand remains readable."
             }
             self.refreshDisplay()
         }

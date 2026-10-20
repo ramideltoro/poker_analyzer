@@ -42,6 +42,8 @@ final class DiagnosticLogTests: XCTestCase {
         XCTAssertTrue(data.contains("layout_locked"))
         XCTAssertTrue(data.contains("readable_stacks")); XCTAssertTrue(data.contains("table_data_status"))
         XCTAssertTrue(data.contains("advice_action")); XCTAssertTrue(data.contains("advice_basis"))
+        XCTAssertTrue(data.contains("advice_available")); XCTAssertTrue(data.contains("advice_state"))
+        XCTAssertTrue(data.contains("action_controls_confirmed"))
         XCTAssertFalse(data.contains("Ah")); XCTAssertFalse(data.contains("Kd"))
         let records = try data.split(separator:"\n").map { try JSONDecoder().decode(DiagnosticLog.Record.self,from:Data($0.utf8)) }
         XCTAssertFalse(records.contains { $0.fields.values.contains { value in ["12345","6789","98765","87654","$123.45","$67.89","$987.65"].contains(value) } })

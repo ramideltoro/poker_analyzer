@@ -4,8 +4,11 @@ import AppKit
 
 @MainActor final class WindowSizingTests: XCTestCase {
     func testHiddenWindowFillsUsableDesktopOnceAndAllowsManualResizing() async throws {
-        guard let screen = NSScreen.main else { throw XCTSkip("No desktop screen is attached") }
+        guard let fallback = NSScreen.main else { throw XCTSkip("No desktop screen is attached") }
         let window = NSWindow(contentRect:NSRect(x:40,y:40,width:1000,height:720),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
+        // The implementation uses this window's display. NSScreen.main can be
+        // another monitor when the user focuses an unrelated desktop window.
+        let screen = window.screen ?? fallback
         window.isReleasedWhenClosed = false
         defer { window.close() }
         let sizing = MaximizedWindow.WindowSizingView()

@@ -13,7 +13,9 @@ final class ActionAdviceTests: XCTestCase {
         XCTAssertEqual(try advice(0.2).title,"FOLD")
         XCTAssertEqual(try advice(0,0).title,"CHECK")
         XCTAssertTrue(try advice(0.25,bound:0.01).marginal)
-        XCTAssertNil(try advice(0.25,bound:0.01).kind,"Simulation noise must not choose a fold")
+        XCTAssertEqual(try advice(0.25,bound:0.01).kind,.call)
+        XCTAssertTrue(try advice(0.25,bound:0.01).reason.contains("low confidence"))
+        XCTAssertEqual(try advice(0.249,bound:0.01).kind,.fold)
         XCTAssertTrue(try advice(0.2).reason.contains("-0.20"))
     }
     func testRaiseRequiresUnbeatableRiverHandLegalSizeAndCoveringStacks() throws {
@@ -83,23 +85,26 @@ final class PremiumAdviceTests: XCTestCase {
             XCTAssertEqual(try advice(hole,table:table(opponents:count)).kind,.raise)
         } } } }
     }
-    func testMissingIllegalOversizedOrUncoveredRaiseNeverInventsSizeOrFoldsPremiumPair() throws {
+    func testUnverifiedRaiseSizesStillGiveAnActionWithoutInventingAnAmount() throws {
         let hole = cards(["Kc","Kh"])
         var t = table(opponents:8)
         for target: Int? in [nil,-1,110,219,100000001] {
             t.controls?.raiseToCents = target
-            XCTAssertNil(try advice(hole,table:t).kind,"Invalid or unconfirmed raise must be reviewed")
+            let decision = try advice(hole,table:t)
+            XCTAssertEqual(decision.kind,.raise,"The confirmed Raise button offers an action even if sizing OCR fails")
+            XCTAssertTrue(decision.reason.contains("Size is not confirmed"))
+            XCTAssertFalse(decision.reason.contains("$"),"No unverified amount may be suggested")
         }
         t = table(); t.seats[t.seats.count-1].betCents = nil
-        XCTAssertNil(try advice(hole,table:t).kind)
+        XCTAssertEqual(try advice(hole,table:t).kind,.raise)
         t = table(); t.seats[t.seats.count-1].stackCents = 200
-        XCTAssertNil(try advice(hole,table:t).kind)
+        XCTAssertEqual(try advice(hole,table:t).kind,.raise)
         t = table(); t.seats[0].stackCents = 0
-        XCTAssertNil(try advice(hole,table:t).kind)
+        XCTAssertEqual(try advice(hole,table:t).kind,.call,"Cannot add a raise against the only all-in opponent")
         t = table(); t.controls?.canRaise = false
         XCTAssertEqual(try advice(hole,q:0.82,table:t).kind,.call)
-        XCTAssertNil(try advice(hole,table:t).kind)
-        XCTAssertNil(try advice(hole,table:nil).kind,"Manual random-hand EV is not enough to fold KK preflop")
+        XCTAssertEqual(try advice(hole,table:t).kind,.call)
+        XCTAssertEqual(try advice(hole,table:nil).kind,.call,"Premium starting-hand rule is separate from random-hand EV")
     }
     func testPreflopRuleDoesNotOverridePostflopKingsPriceDecision() throws {
         let hole = cards(["Ks","Kd"]), board = cards(["Ah","Qh","Jh","Th","2h"])
@@ -108,11 +113,11 @@ final class PremiumAdviceTests: XCTestCase {
         XCTAssertLessThan(estimate.upper,0)
         XCTAssertEqual(ActionAdvice.recommend(hole:hole,board:board,result:result,estimate:estimate,call:1,table:table()).kind,.fold)
         XCTAssertEqual(try advice(hole,board:cards(["2c","4d","7h"]),q:0.8,table:table()).kind,.call)
-        XCTAssertEqual(try advice(cards(["Qs","Qd"]),table:table()).title,"REVIEW")
+        XCTAssertEqual(try advice(cards(["7s","2d"]),q:0.15,table:table()).kind,.fold)
     }
     func testFreeCheckKnownOpponentCardsAndConflictingControls() throws {
         let hole = cards(["Ks","Kd"])
-        var t = table(); t.controls = TableControls(canFold:true,canCheck:true); t.callCents = 0
+        var t = table(); t.controls = TableControls(canFold:true,canCheck:true); t.callCents = 0; t.seats[0].betCents = 10
         XCTAssertEqual(try advice(hole,table:t).kind,.check)
         t.controls?.canCheck = false
         XCTAssertEqual(try advice(hole,table:t).title,"WAIT")

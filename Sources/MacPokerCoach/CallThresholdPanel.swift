@@ -31,28 +31,28 @@ struct CallThresholdPanel: View {
         let tint = advice.kind == .fold ? DashboardStyle.loss : advice.kind == .raise ? DashboardStyle.cyan : DashboardStyle.accent
         VStack(alignment:.leading,spacing:large ? 6 : 3) {
             HStack {
-                Text("SUGGESTED ACTION").sectionLabel()
+                Text(advice.kind == nil ? "DECISION STATUS" : "SUGGESTED ACTION").sectionLabel()
                 Spacer()
                 Button { scenarios = true } label: { Image(systemName:"info.circle") }.buttonStyle(.plain)
                     .help("Decision assumptions and raise scenarios")
                     .popover(isPresented:$scenarios,arrowEdge:.trailing) { DecisionScenarios(analysis:analysis).padding(20).frame(width:470) }
             }.frame(height:12)
             HStack(alignment:.firstTextBaseline) {
-                Text(advice.kind?.label.uppercased() ?? "—").font(.system(size:large ? 32 : 23,weight:.bold,design:.rounded)).foregroundStyle(advice.kind == nil ? .secondary : tint)
+                Text(advice.kind?.label.uppercased() ?? advice.state.label).font(.system(size:advice.kind == nil ? (large ? 20 : 16) : (large ? 32 : 23),weight:.bold,design:.rounded)).foregroundStyle(advice.kind == nil ? .secondary : tint)
                     .lineLimit(1).minimumScaleFactor(0.7)
-                    .accessibilityLabel(advice.kind.map { "Suggested action: \($0.label)" } ?? "No suggested action available")
+                    .accessibilityLabel(advice.kind.map { "Suggested action: \($0.label)" } ?? "\(advice.state.label). No suggested action available")
                 Spacer(minLength:4)
-                Text(advice.marginal ? "TOO CLOSE" : advice.kind != nil ? advice.basis : analysis.isReview ? "SAVED HAND" : "NO SUGGESTION")
+                Text(advice.marginal ? "LOW CONFIDENCE" : advice.kind != nil ? advice.basis : "STATUS")
                     .font(.system(size:8,weight:.semibold)).foregroundStyle(.secondary)
             }.frame(height:large ? 37 : 26)
-            Text(advice.kind == nil ? "No suggestion: \(advice.reason)" : advice.reason).font(.system(size:large ? 12 : 10)).foregroundStyle(.secondary).lineLimit(large ? 3 : 2)
-                .frame(height:large ? 43 : 26,alignment:.topLeading).help(advice.reason)
+            Text(advice.reason).font(.system(size:large ? 12 : 10)).foregroundStyle(.secondary).lineLimit(3)
+                .fixedSize(horizontal:false,vertical:true).frame(height:large ? 48 : 40,alignment:.topLeading).help(advice.reason)
             HStack(spacing:5) {
                 metric("Pot odds",odds,"Eligible pot divided by your additional call. A 3:1 price requires 25% equity in this model.")
                 metric("Equity edge",edge,"Your decision equity minus required calling equity, in percentage points.")
                 metric("Max call*",maxCall,"Break-even extra call at the current pot: equity × pot ÷ (1 − equity), capped at your readable stack. Assumes the same equity and no later betting or rake.")
                 metric("Eff. SPR",spr,"Largest effective remaining stack matchup divided by eligible pot. Multiway matchups differ; this is future exposure, not extra money in the pot.")
-            }.frame(height:large ? 41 : 28)
+            }.frame(height:large ? 36 : 26)
             if large {
                 Text(price.map { "Call price: \(money($0.call)) · minimum pot \(money($0.minimumPot.map { ceil($0*100-1e-9)/100 }))" } ?? "Waiting for current decision inputs")
                     .font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8).frame(height:14)

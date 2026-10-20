@@ -14,7 +14,7 @@ import Combine
     @Published private(set) var lastScan: Date?
     let capture: CaptureController
     let log: DiagnosticLog
-    let analysis = HandAnalysisModel()
+    let analysis: HandAnalysisModel
     let tracking: PlayTracking
     private var analysisObserver: AnyCancellable?
     var version: String { Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development" }
@@ -27,10 +27,11 @@ import Combine
     private let detector = AutomaticCardDetector()
     private let tableDetector = TableStateDetector()
     private let queue = DispatchQueue(label:"handreader.detection",qos:.userInitiated)
-    init(log: DiagnosticLog = .shared,tracking: PlayTracking? = nil) {
+    init(log: DiagnosticLog = .shared,tracking: PlayTracking? = nil,analysis: HandAnalysisModel? = nil) {
         self.log = log; capture = CaptureController(log:log)
+        self.analysis = analysis ?? HandAnalysisModel()
         self.tracking = tracking ?? PlayTracking(persist:log === DiagnosticLog.shared)
-        analysisObserver = analysis.$display.sink { [weak self] display in
+        analysisObserver = self.analysis.$display.sink { [weak self] display in
             guard let self else { return }
             self.tracking.recordDecision(display,current:self.analysis.estimateIsCurrent)
         }
@@ -110,12 +111,13 @@ import Combine
         status = hand?.isReview == true ? "Saved hole cards · continuing visible-board what-if review" : result.1
         analysis.update(hand,table:scan.table)
         if scan.cards.isEmpty && !stabilizer.hasLayout { status = scan.diagnostics.summary }
+        let advice = analysis.actionAdvice
         log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","saved_card_review":"\(hand?.isReview == true)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)",
                                   "table_observed":"\(scan.table != nil)","table_confirmed":"\(analysis.tableConfirmed)","seats_read":"\(scan.table?.seats.count ?? 0)",
                                   "readable_stacks":"\(scan.table?.seats.filter { $0.stackCents != nil }.count ?? 0)","unclear_seats":"\(scan.table?.seats.filter { $0.activity == .unknown }.count ?? 0)",
                                   "pot_read":"\(scan.table?.potCents != nil)","call_read":"\(scan.table?.callCents != nil)","side_pots_detected":"\(scan.table?.sidePots ?? false)",
                                   "table_data_status":scan.table?.incompleteReason ?? (scan.table == nil ? "no_table" : "complete"),"automatic_ev_available":"\(analysis.automatic && analysis.callEstimate != nil)",
                                   "explicit_action_labels":"\(scan.table?.seats.filter { $0.action != nil }.count ?? 0)","opponent_profiles":"\(tracking.opponents.count)","own_hand_action_count":"\(tracking.currentHand?.actions?.count ?? 0)",
-                                  "advice_action":analysis.actionAdvice.title,"advice_basis":analysis.actionAdvice.basis,"advice_close":"\(analysis.actionAdvice.marginal)"])
+                                  "advice_action":advice.title,"advice_basis":advice.basis,"advice_close":"\(advice.marginal)","advice_available":"\(advice.kind != nil)","advice_state":advice.state.rawValue,"action_controls_confirmed":"\(analysis.actionControlsConfirmed)"])
     }
 }

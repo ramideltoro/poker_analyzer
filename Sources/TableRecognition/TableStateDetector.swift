@@ -62,17 +62,14 @@ public final class TableStateDetector: @unchecked Sendable {
         }
         for i in seats.indices { seats[i].id = i+1 }
         let actionTexts = texts.filter { $0.bounds.y > bottom && $0.bounds.y < bottom+height*2.7 && abs($0.bounds.rect.midX-centerX) < width*7 }
-        let checks = actionTexts.filter { $0.confidence >= 0.95 && $0.value.uppercased() == "CHECK" }
-        let calls = actionTexts.filter { $0.confidence >= 0.95 && ($0.value.uppercased() == "CALL" || $0.value.uppercased().hasPrefix("CALL $")) }
-        var call: Int?
-        if checks.count == 1 && calls.isEmpty { call = 0 }
-        else if calls.count == 1 && checks.isEmpty {
-            let label = calls[0]
-            if label.value.uppercased().hasPrefix("CALL $") { call = TableMoney.cents(String(label.value.dropFirst(5))) }
-            else {
-                let values = actionTexts.filter { $0.confidence >= 0.95 && abs($0.bounds.rect.midX-label.bounds.rect.midX) < width && $0.bounds.y >= label.bounds.y && $0.bounds.y < label.bounds.rect.maxY+height*0.45 }.compactMap { TableMoney.cents($0.value) }
-                if values.count == 1 { call = values[0] }
-            }
+        var (controls,call) = readActions(actionTexts,width:width,height:height)
+        if call == nil {
+            // OCR may merge a two-line button into one string in the whole-table
+            // pass. Retry only the bounded action area; never reuse old buttons.
+            let area = CGRect(x:centerX-width*7,y:bottom,width:width*14,height:height*2.7)
+            let focused = try recognize(image,region:area).filter { text in !excluding.contains { $0.rect.intersects(text.bounds.rect) } }
+            let retry = readActions(focused,width:width,height:height)
+            if retry.1 != nil { (controls,call) = retry }
         }
         let main = texts.filter { $0.value.lowercased().hasPrefix("main pot:") && abs($0.bounds.rect.midX-centerX) < width*4 && abs($0.bounds.y-potText.bounds.y) < height }
         let mainAmount = main.count == 1 ? labeledAmount(main[0],"main pot:") : nil
@@ -97,18 +94,32 @@ public final class TableStateDetector: @unchecked Sendable {
         let board = CardGrouping.reviewBoard(cards,anchor:hole)?.map(\.card) ?? []
         let reveals = RevealedCards.associate(cards:cards,seats:seats,known:board+(heroVisible ? selected.hole.map(\.card) : []))
         for i in seats.indices { seats[i].revealedCards = reveals[i] }
-        let raises = actionTexts.filter { $0.confidence >= 0.95 && $0.value.uppercased().hasPrefix("RAISE") }
-        let bets = actionTexts.filter { $0.confidence >= 0.95 && ($0.value.uppercased() == "BET" || $0.value.uppercased().hasPrefix("BET $")) }
+        return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue,boardCards:board,controls:controls)
+    }
+    /// Whitespace is normalized; card characters and monetary digits are never guessed.
+    func readActions(_ texts: [Text],width: Double,height: Double) -> (TableControls,Int?) {
+        let actionTexts = texts.filter { $0.confidence >= 0.95 }.map { text -> Text in
+            var copy = text
+            copy.value = copy.value.uppercased().trimmingCharacters(in:.whitespacesAndNewlines)
+                .replacingOccurrences(of:#"\s+"#,with:" ",options:.regularExpression)
+            return copy
+        }
+        func labels(_ names: [String]) -> [Text] {
+            actionTexts.filter { text in names.contains { name in text.value == name || text.value.hasPrefix(name+" $") || text.value.hasPrefix(name+"$") } }
+        }
+        let checks = actionTexts.filter { $0.value == "CHECK" }, calls = labels(["CALL"]), raises = labels(["RAISE","RAISE TO"]), bets = labels(["BET"])
         func controlAmount(_ labels: [Text]) -> Int? {
             guard labels.count == 1 else { return nil }
             let label = labels[0]
             if let dollar = label.value.firstIndex(of:"$") { return TableMoney.cents(String(label.value[dollar...])) }
-            let amounts = actionTexts.filter { $0.confidence >= 0.95 && abs($0.bounds.rect.midX-label.bounds.rect.midX) < width && $0.bounds.y >= label.bounds.rect.maxY && $0.bounds.y < label.bounds.rect.maxY+height*0.5 }.compactMap { TableMoney.cents($0.value) }
+            let lowerY = label.value == "CALL" ? label.bounds.y : label.bounds.rect.maxY
+            let amounts = actionTexts.filter { abs($0.bounds.rect.midX-label.bounds.rect.midX) < width && $0.bounds.y >= lowerY && $0.bounds.y < label.bounds.rect.maxY+height*0.5 }.compactMap { TableMoney.cents($0.value) }
             return amounts.count == 1 ? amounts[0] : nil
         }
         let controls = TableControls(canFold:actionTexts.contains { $0.confidence >= 0.95 && $0.value.uppercased() == "FOLD" },canCheck:checks.count == 1,canCall:calls.count == 1,
                                      canBet:bets.count == 1,canRaise:raises.count == 1,raiseToCents:controlAmount(raises),betAmountCents:controlAmount(bets))
-        return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue,boardCards:board,controls:controls)
+        let call = checks.count == 1 && calls.isEmpty ? 0 : checks.isEmpty ? controlAmount(calls) : nil
+        return (controls,call)
     }
     /// A bet sits inward from a known seat toward the felt center; a missing outer stack does not.
     private func isChipBet(_ bounds: UnitRect,seats: [TableSeat],centerX: Double,centerY: Double,width: Double,height: Double) -> Bool {

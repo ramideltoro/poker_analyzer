@@ -45,6 +45,17 @@ public struct TableObservation: Sendable, Equatable {
     }
     public var hero: TableSeat? { seats.first(where: \.isHero) }
     public var activeOpponents: [TableSeat] { seats.filter { !$0.isHero && $0.activity == .active } }
+    /// A free check does not depend on the pot, other stacks, or the raise slider.
+    /// Confirm the current hero, extra-call price and action buttons independently.
+    public func agreesForActions(with other: TableObservation) -> Bool {
+        guard let a = hero, let b = other.hero, let ac = controls, let bc = other.controls,
+              a.activity == .active, b.activity == .active, callCents == other.callCents,
+              ac.canFold == bc.canFold, ac.canCheck == bc.canCheck, ac.canCall == bc.canCall,
+              ac.canBet == bc.canBet, ac.canRaise == bc.canRaise,
+              abs(a.bounds.rect.midX-b.bounds.rect.midX) < 0.015,
+              abs(a.bounds.rect.midY-b.bounds.rect.midY) < 0.015 else { return false }
+        return true
+    }
     public var incompleteReason: String? {
         if let issue { return issue }
         guard (2...9).contains(seats.count), seats.filter(\.isHero).count == 1 else { return "Cannot identify all occupied seats and your stack." }
