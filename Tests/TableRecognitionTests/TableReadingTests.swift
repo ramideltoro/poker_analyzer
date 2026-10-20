@@ -75,7 +75,7 @@ final class TableReadingTests: XCTestCase {
 }
 
 extension TableReadingTests {
-    func practiceTable(seatCount: Int,sidePot: Bool = false,betSize: CGFloat = 20) -> (CGImage,[DetectedCard]) {
+    func practiceTable(seatCount: Int,sidePot: Bool = false,betSize: CGFloat = 20,seatAction: String? = nil) -> (CGImage,[DetectedCard]) {
         let scene = NSImage(size:NSSize(width:1200,height:1000))
         scene.lockFocus()
         NSColor(calibratedRed:0.04,green:0.19,blue:0.19,alpha:1).setFill(); NSRect(x:0,y:0,width:1200,height:1000).fill()
@@ -100,6 +100,7 @@ extension TableReadingTests {
             }
             box(left,top,216,52,NSColor(calibratedRed:0.4,green:0.54,blue:0.55,alpha:1))
             text(hero ? "$9.00" : String(format:"$%d.00",i+10),left+78,top+9,23,.black)
+            if i == 0, let seatAction { text(seatAction,left+75,top+54,16) }
         }
         text("Total pot: $3.00",510,350,22)
         if sidePot { text("Main pot: $2.00",510,383,22); text("Side pot: $1.00",510,416,22) }

@@ -1,3 +1,23 @@
+# Live Card Reader 0.12.0 verification
+
+## Reported crash
+
+The local macOS v0.11.0/build 17 crash report at 2026-10-19 21:36:32 identifies EXC_BREAKPOINT / SIGTRAP, detection queue, `AutomaticCardDetector.read`, with `Range requires lowerBound <= upperBound` at the inset rank-pixel loop. The inferred two-pixel width is consistent with the trace’s width register and `1..<(width−2)` expression. The root cause is an unchecked refined-crop size, not evidence of a five-hand counter or an out-of-memory termination. The size guard rejects widths below 4 or heights below 3 before range construction, and suit-crop height is checked before cropping. A direct regression exercises 192 tiny/narrow sizes, including the reported width. Existing supplied-card/table fixtures remain part of the full suite. Live pixels are not read through tools.
+
+## Decisions and extra metrics
+
+The action panel renders CALL/FOLD from incremental call EV, CHECK at zero cost, a CLOSE label when sampling spans zero, WAIT without current supported inputs, and review without a live decision. A narrow RAISE rule requires exact heads-up river enumeration with zero losses and some outright wins, improvement beyond playing the board, a confirmed quoted raise-to control, readable current bets and covering stacks. The quote must be at least twice the opponent’s current bet, with no own street investment; this conservatively avoids incomplete-raise/reopening cases. A quoted amount is not asserted to be the minimum. It does not infer general raise profitability from equity. Tests cover call/fold/check, marginal decisions, legal nuts raises, stack/sizing/side-pot restrictions, rejecting sampled-only evidence and stopped/review suppression. Pot odds, equity edge, fixed-pot maximum call and largest effective-stack-to-pot ratio are shown inline with definitions. General raise scenarios still require explicit assumptions.
+
+## Action statistics and history
+
+Only high-confidence, spatially assigned seat action labels repeated across observations produce events. Available Call/Raise controls are recognized separately and tested not to become completed actions. Parser tests reject blinds, All-in, history prose, malformed OCR and ambiguous labels. Scanner tests cover persistent labels, cleared labels with further raises, card/money-only observations, interruptions, same-street checks, fresh checks on another street and folded players. Profiles and action scanner state clear on replacement/exit while other seats retain their history. Own action events alone persist; archives from v0.11.0 without the optional action field decode unchanged.
+
+Play and preflop raise rates use preflop hands with recorded actions; action-mix rates use all confirmed action events. Deduplicated hand denominators and action denominators are tested separately. These sampled rates are not complete-history VPIP/PFR and can be biased by missed labels. Known raise additions require a readable stack reduction, and unknown amounts remain absent. No live action-label layout accuracy is claimed from the generated practice image alone.
+
+My statistics is a single-screen main-page tab with result totals, measured/unmeasured counts, profit curve, action chart, sample rates/counts, drawdown and size coverage. Calculation tests verify mixed positive/negative results and drawdown while excluding an unmeasured final hand. Layout tests and offscreen synthetic native renders cover empty/recorded statistics at 1000×720, 1440×900 and 1900×1020, plus the live action panel, players panel and history sheet. A 250-hand synthetic replay checks 250 calls, 250 folds, 250 opponent raises, 249 resolved intervals, repeated Codable round trips and clearing opponents on exit. This is sustained synthetic state testing, not live wagering or an OS-level capture endurance test. Final optimized release suite: 118 scheduled, 116 passed, two older optional original-image replays skipped, zero failures (14.05 seconds). The Apple silicon app is v0.12.0 / build 18, ad-hoc signed and strictly verified. Private crash reports/logs, personal history and generated preview images are excluded from the packaged source.
+
+# Earlier v0.11.0 verification
+
 # Live Card Reader 0.11.0 verification
 
 ## Dollar call prices and session / personal tracking

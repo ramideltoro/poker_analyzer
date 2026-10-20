@@ -42,4 +42,16 @@ import TableRecognition
         model.analysis.update(hand,table:table); model.analysis.update(hand,table:table); check()
         model.clear("Stopped"); check()
     }
+    func testStatisticsPageFitsEmptyAndRecordedHistoryAtMinimumAndFullSize() {
+        let model = AppModel(log:.disabled), f = PlayTrackingTests()
+        for loaded in [false,true] {
+            if loaded { f.feed(model.tracking,f.table(),f.hand()); f.feed(model.tracking,f.table(stack:1200),f.hand(["Qc","Qs"]),at:1) }
+            for size in [CGSize(width:1000,height:720),CGSize(width:1440,height:900),CGSize(width:1900,height:1020)] {
+                let host = NSHostingView(rootView:RootView(model:model,page:1).frame(width:size.width,height:size.height).preferredColorScheme(.dark))
+                host.layoutSubtreeIfNeeded()
+                XCTAssertEqual(host.fittingSize.width,size.width,accuracy:1)
+                XCTAssertEqual(host.fittingSize.height,size.height,accuracy:1)
+            }
+        }
+    }
 }

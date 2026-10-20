@@ -5,66 +5,68 @@ struct CallThresholdPanel: View {
     @ObservedObject var analysis: HandAnalysisModel
     var height: CGFloat
     @State private var scenarios = false
-    private func percent(_ v: Double?) -> String { v.map { String(format:"%.1f%%",$0*100) } ?? "—" }
     private func money(_ v: Double?) -> String { v.map { String(format:"$%.2f",$0) } ?? "—" }
     private var price: DecisionPrice? {
-        guard let q = analysis.display.decisionEquity, let p = analysis.display.eligiblePotDollars,
-              let c = analysis.display.decisionCallDollars else { return nil }
+        guard let q = analysis.display.decisionEquity, let p = analysis.display.eligiblePotDollars, let c = analysis.display.decisionCallDollars else { return nil }
         return try? DecisionPrice(equity:q,pot:p,call:c)
     }
-    private var minimum: String {
-        guard let price else { return "—" }
-        return price.minimumPot.map { money(ceil($0*100-1e-9)/100) } ?? "No finite pot"
+    private var odds: String { guard let p = price else { return "—" }; return p.call == 0 ? "Free" : String(format:"%.2f : 1",p.pot/p.call) }
+    private var edge: String {
+        guard let q = price?.equity, let required = analysis.display.estimate?.requiredEquity else { return "—" }
+        return String(format:"%+.1f pp",(q-required)*100)
     }
-    private var callLine: String {
-        guard let price else { return "Call: waiting for confirmed equity, pot and call." }
-        if price.call == 0 { return "Check is free. No extra chips needed." }
-        guard let needed = price.minimumPot else { return "Call: zero equity cannot justify a paid call." }
-        if let estimate = analysis.display.estimate, estimate.lower < estimate.upper, estimate.lower <= 0, estimate.upper >= 0 {
-            return "Near break-even: simulation uncertainty crosses $0 EV."
-        }
-        let short = max(0,needed-price.pot)
-        if short > 0.005 { return "Call needs \(money(short)) more in the pot (same equity)." }
-        return "Current pot meets the call price in this model."
+    private var maxCall: String {
+        guard let price else { return "—" }
+        let cap = analysis.display.table?.hero?.stackCents.map { Double($0)/100 }
+        let maximum = price.maximumCall.map { min($0,cap ?? $0) } ?? cap
+        return maximum.map { money(floor($0*100+1e-9)/100) } ?? "No cap"
+    }
+    private var spr: String {
+        guard let context = analysis.display.context, let effective = context.effectiveStacks.max(), context.potCents > 0 else { return "—" }
+        return String(format:"%.1f ×",Double(effective)/Double(context.potCents))
     }
     var body: some View {
-        let large = height >= 265
+        let advice = analysis.actionAdvice
+        let large = height >= 210
+        let tint = advice.kind == .fold ? DashboardStyle.loss : advice.kind == .raise ? DashboardStyle.cyan : DashboardStyle.accent
         VStack(alignment:.leading,spacing:large ? 6 : 3) {
             HStack {
-                Text("IS THE CALL WORTH ITS PRICE?").sectionLabel().lineLimit(1).minimumScaleFactor(0.8)
-                Spacer(minLength:4)
-                Button { scenarios = true } label: { Image(systemName:"slider.horizontal.3") }
-                    .buttonStyle(.plain).help("Explore call and raise prices")
+                Text("SUGGESTED ACTION").sectionLabel()
+                Spacer()
+                Button { scenarios = true } label: { Image(systemName:"info.circle") }.buttonStyle(.plain)
+                    .help("Decision assumptions and raise scenarios")
                     .popover(isPresented:$scenarios,arrowEdge:.trailing) { DecisionScenarios(analysis:analysis).padding(20).frame(width:470) }
-            }.frame(height:14)
-            HStack(alignment:.firstTextBaseline,spacing:8) {
-                Text(minimum).font(.system(size:large ? 32 : 24,weight:.semibold,design:.rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.65)
-                    .foregroundStyle(analysis.estimateIsCurrent ? DashboardStyle.accent : .secondary)
-                VStack(alignment:.leading,spacing:1) {
-                    Text("estimated min. pot to call").font(.system(size:large ? 12 : 10,weight:.medium))
-                    Text("for a \(money(price?.call)) call at \(percent(price?.equity)) equity")
-                        .font(.system(size:9)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
-                }
-            }.frame(height:large ? 43 : 33)
-            Text(callLine).font(.system(size:large ? 12 : 10)).foregroundStyle(.secondary)
-                .lineLimit(2).frame(height:large ? 30 : 25,alignment:.topLeading)
-            HStack(spacing:8) {
-                Text("Fold: $0 extra; give up the pot.")
-                Spacer(minLength:0)
-                Button("Raise: explore →") { scenarios = true }.buttonStyle(.plain).foregroundStyle(DashboardStyle.cyan)
-            }.font(.system(size:large ? 11 : 9)).lineLimit(1).frame(height:14)
-            if height >= 205 {
-                Text("You need \(percent(analysis.display.estimate?.requiredEquity)) equity to call this pot. Your estimate is \(percent(price?.equity)).")
-                    .font(.system(size:11)).foregroundStyle(.secondary).lineLimit(2).frame(height:28,alignment:.topLeading)
-            }
+            }.frame(height:12)
+            HStack(alignment:.firstTextBaseline) {
+                Text(advice.title).font(.system(size:large ? 32 : 23,weight:.bold,design:.rounded)).foregroundStyle(advice.kind == nil ? .secondary : tint)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Spacer(minLength:4)
+                Text(advice.marginal ? "CLOSE" : analysis.estimateIsCurrent ? "ESTIMATE" : "WAITING / SAVED")
+                    .font(.system(size:8,weight:.semibold)).foregroundStyle(.secondary)
+            }.frame(height:large ? 37 : 26)
+            Text(advice.reason).font(.system(size:large ? 12 : 10)).foregroundStyle(.secondary).lineLimit(large ? 3 : 2)
+                .frame(height:large ? 43 : 26,alignment:.topLeading).help(advice.reason)
+            HStack(spacing:5) {
+                metric("Pot odds",odds,"Eligible pot divided by your additional call. A 3:1 price requires 25% equity in this model.")
+                metric("Equity edge",edge,"Your decision equity minus required calling equity, in percentage points.")
+                metric("Max call*",maxCall,"Break-even extra call at the current pot: equity × pot ÷ (1 − equity), capped at your readable stack. Assumes the same equity and no later betting or rake.")
+                metric("Eff. SPR",spr,"Largest effective remaining stack matchup divided by eligible pot. Multiway matchups differ; this is future exposure, not extra money in the pot.")
+            }.frame(height:large ? 41 : 28)
             if large {
-                Text("Minimum pot = call × (1 − equity) ÷ equity. A raise has no single pot cutoff: the size, callers and folds matter.")
-                    .font(.system(size:11)).foregroundStyle(.secondary).lineLimit(3).frame(height:42,alignment:.topLeading)
+                Text(price.map { "Call price: \(money($0.call)) · minimum pot \(money($0.minimumPot.map { ceil($0*100-1e-9)/100 }))" } ?? "Waiting for current decision inputs")
+                    .font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8).frame(height:14)
             }
-            Text(analysis.isReview ? "SAVED decision price · folding ends your claim to this pot." : "One-pot price estimate · random hands, no later bets or rake. Not an action recommendation.")
-                .font(.system(size:9)).foregroundStyle(.tertiary).lineLimit(2).frame(height:22,alignment:.topLeading)
-        }.padding(10).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height)
+            Text("Rule-based estimate · random hands · no later bets or rake.")
+                .font(.system(size:8)).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.8).frame(height:12)
+        }.padding(8).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height)
             .dashboardPanel().transaction { $0.animation = nil }
+    }
+    private func metric(_ label: String,_ value: String,_ definition: String) -> some View {
+        VStack(alignment:.leading,spacing:2) {
+            Text(label).font(.system(size:8)).foregroundStyle(.secondary).lineLimit(1)
+            Text(value).font(.system(size:height >= 210 ? 18 : 13,weight:.medium,design:.rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.65)
+                .foregroundStyle(analysis.estimateIsCurrent ? .primary : .secondary)
+        }.frame(maxWidth:.infinity,alignment:.leading).help(definition)
     }
 }
 

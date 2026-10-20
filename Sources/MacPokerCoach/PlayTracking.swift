@@ -29,6 +29,7 @@ struct OwnHandRecord: Codable, Identifiable {
     var openingChips: Int?
     var netCents: Int?
     var observations = [OwnObservation]()
+    var actions: [TrackedAction]?
     var completion = "In progress"
 }
 struct CashAdjustment: Codable, Identifiable {
@@ -73,6 +74,8 @@ struct OpponentProfile: Identifiable {
     var activity: SeatActivity
     var observedRounds = Set<UUID>()
     var shown = [ShownHand]()
+    var actions = [TrackedAction]()
+    var statistics: ActionStatistics { ActionStatistics(events:actions) }
     var label: String { seatNumber.map { "Seat \($0)" } ?? "Position \(screenPosition)" }
     // Deliberately not Codable. No opponent identity, cards or statistics enter the archive.
 }
@@ -118,6 +121,8 @@ final class OwnPlayStore: @unchecked Sendable {
     private var revealCandidates = [UUID:[Card]]()
     private var rejectedRevealRounds = [UUID:UUID]()
     private var markerVisible = Set<UUID>()
+    private var actionScanners = [UUID:ActionScanner]()
+    private var heroScanner = ActionScanner()
     private var round = UUID()
     private var roundBoard = [Card]()
     private var pendingBoard: [Card]?
@@ -151,11 +156,14 @@ final class OwnPlayStore: @unchecked Sendable {
     }
     var measuredHands: [OwnHandRecord] { archive.hands.filter { $0.netCents != nil } }
     var currentHand: OwnHandRecord? { currentHandID.flatMap { id in archive.hands.first { $0.id == id } } }
+    var ownStatistics: ActionStatistics { ActionStatistics(events:archive.hands.flatMap { $0.actions ?? [] }) }
 
     /// Called for every fresh frame, independent of hero visibility and analysis availability.
     func observe(table: TableObservation?,hand: LiveHand?,time: Date) {
         guard let table, table.issue == nil, let hero = table.hero, table.seats.count >= 2 else {
             previous = nil; revealCandidates.removeAll()
+            heroScanner.interrupt()
+            for key in actionScanners.keys { actionScanners[key]?.interrupt() }
             if let lastTable, time.timeIntervalSince(lastTable) > 2.5 { endTable("Table visibility lost · opponent records cleared",time:time) }
             return
         }
@@ -189,6 +197,7 @@ final class OwnPlayStore: @unchecked Sendable {
         reconcileOpponents(table,previous:old,time:time)
         for i in opponents.indices { opponents[i].observedRounds.insert(round) }
         recordReveals(table,previous:old,time:time)
+        recordActions(table,previous:old,hand:hand,time:time)
     }
     private static func sameSeat(_ a: UnitRect,_ b: UnitRect) -> Bool {
         abs(a.rect.midX-b.rect.midX) < 0.022 && abs(a.rect.midY-b.rect.midY) < 0.022 &&
@@ -223,7 +232,7 @@ final class OwnPlayStore: @unchecked Sendable {
         }
     }
     private func removeOpponent(_ id: UUID) {
-        opponents.removeAll { $0.id == id }; revealCandidates[id] = nil; rejectedRevealRounds[id] = nil; missingFrames[id] = nil; markerVisible.remove(id)
+        opponents.removeAll { $0.id == id }; revealCandidates[id] = nil; rejectedRevealRounds[id] = nil; missingFrames[id] = nil; markerVisible.remove(id); actionScanners[id] = nil
     }
     func forgetOpponent(_ id: UUID) { removeOpponent(id); status = "Seat history cleared. A visible player starts a fresh profile on the next scan." }
     private func recordReveals(_ table: TableObservation,previous old: TableObservation,time: Date) {
@@ -254,6 +263,25 @@ final class OwnPlayStore: @unchecked Sendable {
     }
     private func beginRound() {
         round = UUID(); roundBoard = []; roundHasHeroDeal = false; revealCandidates.removeAll(); rejectedRevealRounds.removeAll()
+        heroScanner = ActionScanner(); actionScanners.removeAll()
+    }
+    private func recordActions(_ table: TableObservation,previous old: TableObservation,hand: LiveHand?,time: Date) {
+        guard table.boardCards == old.boardCards else { return }
+        let street = table.boardCards.count
+        guard [0,3,4,5].contains(street) else { return }
+        for i in opponents.indices {
+            let profile = opponents[i]
+            guard let seat = table.seats.first(where:{ !$0.isHero && Self.sameSeat($0.bounds,profile.bounds) }) else { actionScanners[profile.id]?.interrupt(); continue }
+            let previous = old.seats.first(where:{ !$0.isHero && Self.sameSeat($0.bounds,profile.bounds) })
+            var scanner = actionScanners[profile.id] ?? ActionScanner()
+            if let event = scanner.accept(seat,previous:previous,round:round,street:street,time:time) { opponents[i].actions.append(event) }
+            actionScanners[profile.id] = scanner
+        }
+        guard roundHasHeroDeal, let i = handIndex, let hero = table.hero else { heroScanner.interrupt(); return }
+        if let hand, !hand.isReview, hand.hole.map({ $0.card.code }).sorted() != archive.hands[i].hole { heroScanner.interrupt(); return }
+        if let event = heroScanner.accept(hero,previous:old.hero,round:round,street:street,time:time) {
+            archive.hands[i].actions = (archive.hands[i].actions ?? [])+[event]; dirty = true
+        }
     }
     private func observeOwn(hand: LiveHand?,table: TableObservation,old: TableObservation,time: Date) {
         guard let hero = table.hero else { return }

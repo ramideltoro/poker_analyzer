@@ -13,22 +13,30 @@ struct OpponentTrackingPanel: View {
     var height: CGFloat
     var body: some View {
         VStack(alignment:.leading,spacing:3) {
-            HStack { Text("THIS TABLE ONLY").sectionLabel(); Spacer(); Image(systemName:"memorychip").foregroundStyle(DashboardStyle.accent) }.frame(height:14)
-            Text("Observed deals / shown hands").font(.system(size:9)).foregroundStyle(.secondary).frame(height:12)
+            HStack { Text("PLAYER ACTIONS").sectionLabel(); Spacer(); Image(systemName:"memorychip").foregroundStyle(DashboardStyle.accent) }.frame(height:14)
+            HStack(spacing:3) {
+                Text("Seat").frame(width:40,alignment:.leading)
+                ForEach(["Play","Raise","Fold","Check"],id:\.self) { Text($0).frame(maxWidth:.infinity) }
+            }.font(.system(size:8)).foregroundStyle(.secondary).frame(height:12)
             ForEach(0..<8,id:\.self) { i in
                 let player = tracking.opponents.sorted { $0.screenPosition < $1.screenPosition }[safe:i]
-                HStack(spacing:5) {
-                    VStack(alignment:.leading,spacing:1) {
-                        Text(player?.label ?? "—").font(.system(size:10,weight:.medium)).lineLimit(1)
-                        Text(player.map { "\($0.observedRounds.count) seen · \($0.shown.count) shown" } ?? "Waiting for seat")
-                            .font(.system(size:8)).foregroundStyle(.secondary)
+                let stats = player?.statistics
+                VStack(alignment:.leading,spacing:1) {
+                    HStack(spacing:3) {
+                        Text(player?.label ?? "—").font(.system(size:9,weight:.medium)).lineLimit(1).minimumScaleFactor(0.7).frame(width:40,alignment:.leading)
+                        ForEach([statPercent(stats?.playRate),statPercent(stats?.rate(.raise)),statPercent(stats?.rate(.fold)),statPercent(stats?.rate(.check))].indices,id:\.self) { j in
+                            let values = [statPercent(stats?.playRate),statPercent(stats?.rate(.raise)),statPercent(stats?.rate(.fold)),statPercent(stats?.rate(.check))]
+                            Text(values[j]).font(.system(size:10,design:.rounded)).monospacedDigit().frame(maxWidth:.infinity)
+                        }
                     }
-                    Spacer(minLength:2)
-                    Text(player?.shown.last?.cards.map(\.display).joined(separator:" ") ?? "—")
-                        .font(.system(size:13,weight:.medium,design:.rounded)).foregroundStyle(DashboardStyle.cyan).monospacedDigit().lineLimit(1)
-                }.frame(height:max(24,(height-102)/8)).help("\(player?.label ?? "Unoccupied") · latest confirmed shown cards. Counts are observed rounds, not a complete dealt-hand or showdown rate.")
+                    HStack {
+                        Text(player.map { "\($0.statistics.total) actions · \($0.statistics.preflopHands) PF" } ?? "Waiting for seat").foregroundStyle(.secondary)
+                        Spacer(minLength:2)
+                        Text(player?.shown.last?.cards.map(\.display).joined(separator:" ") ?? "—").foregroundStyle(DashboardStyle.cyan)
+                    }.font(.system(size:8)).lineLimit(1)
+                }.frame(height:max(24,(height-102)/8)).help("Play: entered pot in sampled preflop hands. Raise/Fold/Check: shares of confirmed action labels. Repeated frames count once. Open history for counts, definitions and shown cards.")
             }
-            Text("Cleared on exit, replacement or lost continuity. Only visible cards can be recorded.")
+            Text("Play = sampled hands; others = action mix. More details in Play history.")
                 .font(.system(size:9)).foregroundStyle(.tertiary).lineLimit(2).frame(height:26,alignment:.topLeading)
         }.padding(10).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height).dashboardPanel()
     }
@@ -81,6 +89,16 @@ struct TrackingSheet: View {
                                 Spacer()
                                 Button("Clear this seat") { tracking.forgetOpponent(player.id) }.controlSize(.small)
                             }
+                            let stats = player.statistics
+                            HStack(spacing:18) {
+                                opponentMetric("Play",statPercent(stats.playRate),"\(stats.playedHands)/\(stats.preflopHands) preflop hands")
+                                opponentMetric("Preflop raise",statPercent(stats.preflopRaiseRate),"\(stats.raisedPreflopHands)/\(stats.preflopHands) preflop hands")
+                                opponentMetric("Raise",statPercent(stats.rate(.raise)),"\(stats.count(.raise))/\(stats.total) actions")
+                                opponentMetric("Fold",statPercent(stats.rate(.fold)),"\(stats.count(.fold))/\(stats.total) actions")
+                                opponentMetric("Check",statPercent(stats.rate(.check)),"\(stats.count(.check))/\(stats.total) actions")
+                                opponentMetric("Call / bet","\(stats.count(.call)) / \(stats.count(.bet))","Recorded labels")
+                            }
+                            Text("Play/PFR use sampled preflop hands. Other percentages use all confirmed action labels. Missed actions can bias rates; these are not complete-history VPIP/PFR.").font(.caption).foregroundStyle(.secondary)
                             if player.shown.isEmpty { Text("No two-card reveal confirmed.").font(.caption).foregroundStyle(.secondary) }
                             ForEach(player.shown.reversed()) { reveal in
                                 HStack {
@@ -142,6 +160,10 @@ struct TrackingSheet: View {
                             Text("Board: \(record.board.compactMap(Card.init).map(\.display).joined(separator:" "))")
                             Text("\(record.startedPreflop ? "First seen preflop" : "Partial hand") · \(record.cardsDisappeared ? "Cards disappeared (possible fold/muck)" : "No disappearance confirmed")")
                                 .font(.caption).foregroundStyle(.secondary)
+                            ForEach(record.actions ?? []) { event in
+                                Text("\(event.time.formatted(date:.omitted,time:.standard)) · \(event.kind.label) · added \(trackedMoney(event.addedCents)) · wager to \(trackedMoney(event.wagerToCents)) · street \(event.street)")
+                                    .font(.caption).foregroundStyle(DashboardStyle.cyan)
+                            }
                             ForEach(record.observations) { event in
                                 VStack(alignment:.leading,spacing:3) {
                                     Text("\(event.time.formatted(date:.omitted,time:.standard)) · \([0:"Preflop",3:"Flop",4:"Turn",5:"River"][event.street] ?? "Street") · \(event.note)").font(.caption)
@@ -156,6 +178,13 @@ struct TrackingSheet: View {
             }.frame(maxHeight:.infinity)
         }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
     }
+private func opponentMetric(_ title: String,_ value: String,_ sample: String) -> some View {
+    VStack(alignment:.leading,spacing:3) {
+        Text(title).font(.caption).foregroundStyle(.secondary)
+        Text(value).font(.title3).monospacedDigit()
+        Text(sample).font(.caption2).foregroundStyle(.secondary)
+    }.frame(maxWidth:.infinity,alignment:.leading)
+}
     private func stat(_ title: String,_ value: String) -> some View {
         VStack(alignment:.leading,spacing:4) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3).monospacedDigit() }.frame(maxWidth:.infinity,alignment:.leading)
     }

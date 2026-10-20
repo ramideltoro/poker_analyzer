@@ -175,10 +175,11 @@ public final class AutomaticCardDetector: @unchecked Sendable {
         diagnostics.record(attempt,bounds:bounds,method:method)
         return result
     }
-    private func read(_ image: CGImage,diagnostics: inout ScanDiagnostics) -> (Card,Double,Double)? {
+    func read(_ image: CGImage,diagnostics: inout ScanDiagnostics) -> (Card,Double,Double)? {
         // Isolate the first ink row: isolated 6/9 glyphs are unreliable with text OCR alone.
         let cornerRect = CGRect(x:0,y:0,width:Double(image.width),height:Double(image.height)*0.53).integral
-        guard let corner = image.cropping(to:cornerRect), let p = SuitRecognizer.pixels(corner) else { diagnostics.reject(.rankInkMissing); return nil }
+        guard let corner = image.cropping(to:cornerRect), let p = SuitRecognizer.pixels(corner),
+              p.width >= 4, p.height >= 3 else { diagnostics.reject(.rankInkMissing); return nil }
         let inset = 1
         var ink = [Bool](repeating:false,count:p.width*p.height)
         for i in ink.indices { ink[i] = min(p.bytes[i*4],p.bytes[i*4+1],p.bytes[i*4+2]) < 150 }
@@ -220,6 +221,7 @@ public final class AutomaticCardDetector: @unchecked Sendable {
         // Large centered suit symbols can span nearly the whole face. The rank's
         // left edge does not predict the suit's position or width.
         let y = Double(bottom+3)
+        guard y < Double(image.height) else { diagnostics.reject(.suitInkMissing); return nil }
         let symbolRect = CGRect(x:0,y:y,width:Double(image.width),height:min(Double(image.height)*0.55,Double(image.height)-y)).integral
         guard let symbol = image.cropping(to:symbolRect), let suit = SuitRecognizer.match(symbol) else { diagnostics.reject(.suitInkMissing); return nil }
         if suit.score >= diagnostics.bestSuitScore { diagnostics.bestSuitScore = suit.score; diagnostics.bestSuitMargin = suit.margin }

@@ -49,8 +49,10 @@ public final class TableStateDetector: @unchecked Sendable {
             let badge = CGRect(x:panel.x,y:panel.y,width:panel.width*0.29,height:panel.height)
             let numbers = texts.filter { $0.confidence >= 0.95 && badge.contains(CGPoint(x:$0.bounds.rect.midX,y:$0.bounds.rect.midY)) }
                 .compactMap { Int($0.value.trimmingCharacters(in:.whitespacesAndNewlines)) }.filter { (1...9).contains($0) }
+            let actionArea = CGRect(x:panel.x,y:panel.y-panel.height*0.12,width:panel.width,height:panel.height*1.5)
+            let observedActions = Set(texts.filter { $0.confidence >= 0.98 && actionArea.contains(CGPoint(x:$0.bounds.rect.midX,y:$0.bounds.rect.midY)) }.compactMap { SeatAction.parse($0.value) })
             seats.append(TableSeat(id:0,bounds:panel,isHero:hero,stackCents:stack,activity:activity,
-                                   seatNumber:numbers.count == 1 ? numbers[0] : nil,isNewPlayer:labels.contains { $0.contains("NEW PLAYER") }))
+                                   seatNumber:numbers.count == 1 ? numbers[0] : nil,isNewPlayer:labels.contains { $0.contains("NEW PLAYER") },action:observedActions.count == 1 ? observedActions.first : nil))
         }
         // Clockwise screen locations, with hero last to avoid angle wraparound from pixel jitter.
         // These IDs describe current geometry, not persistent player identities.
@@ -95,7 +97,18 @@ public final class TableStateDetector: @unchecked Sendable {
         let board = CardGrouping.reviewBoard(cards,anchor:hole)?.map(\.card) ?? []
         let reveals = RevealedCards.associate(cards:cards,seats:seats,known:board+(heroVisible ? selected.hole.map(\.card) : []))
         for i in seats.indices { seats[i].revealedCards = reveals[i] }
-        return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue,boardCards:board)
+        let raises = actionTexts.filter { $0.confidence >= 0.95 && $0.value.uppercased().hasPrefix("RAISE") }
+        let bets = actionTexts.filter { $0.confidence >= 0.95 && ($0.value.uppercased() == "BET" || $0.value.uppercased().hasPrefix("BET $")) }
+        func controlAmount(_ labels: [Text]) -> Int? {
+            guard labels.count == 1 else { return nil }
+            let label = labels[0]
+            if let dollar = label.value.firstIndex(of:"$") { return TableMoney.cents(String(label.value[dollar...])) }
+            let amounts = actionTexts.filter { $0.confidence >= 0.95 && abs($0.bounds.rect.midX-label.bounds.rect.midX) < width && $0.bounds.y >= label.bounds.rect.maxY && $0.bounds.y < label.bounds.rect.maxY+height*0.5 }.compactMap { TableMoney.cents($0.value) }
+            return amounts.count == 1 ? amounts[0] : nil
+        }
+        let controls = TableControls(canFold:actionTexts.contains { $0.confidence >= 0.95 && $0.value.uppercased() == "FOLD" },canCheck:checks.count == 1,canCall:calls.count == 1,
+                                     canBet:bets.count == 1,canRaise:raises.count == 1,raiseToCents:controlAmount(raises),betAmountCents:controlAmount(bets))
+        return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue,boardCards:board,controls:controls)
     }
     /// A bet sits inward from a known seat toward the felt center; a missing outer stack does not.
     private func isChipBet(_ bounds: UnitRect,seats: [TableSeat],centerX: Double,centerY: Double,width: Double,height: Double) -> Bool {

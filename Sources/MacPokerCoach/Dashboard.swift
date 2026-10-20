@@ -9,19 +9,25 @@ struct RootView: View {
     @ObservedObject private var analysis: HandAnalysisModel
     @ObservedObject private var tracking: PlayTracking
     @State private var showingHistory = false
-    init(model: AppModel) { self.model = model; capture = model.capture; analysis = model.analysis; tracking = model.tracking }
+    @State private var page: Int
+    @State private var historyTab = 0
+    init(model: AppModel,page: Int = 0) { self.model = model; capture = model.capture; analysis = model.analysis; tracking = model.tracking; _page = State(initialValue:page) }
     var body: some View {
         GeometryReader { geometry in
             let layout = DashboardMetrics(size:geometry.size)
             VStack(spacing:layout.gap) {
                 header.frame(height:layout.header)
-                HandAnalysisView(analysis:analysis,tracking:tracking,height:layout.analysis)
-                cardsDock(height:layout.cards).frame(height:layout.cards)
+                if page == 0 {
+                    HandAnalysisView(analysis:analysis,tracking:tracking,height:layout.analysis)
+                    cardsDock(height:layout.cards).frame(height:layout.cards)
+                } else {
+                    PersonalStatisticsView(tracking:tracking,height:layout.analysis+layout.cards+layout.gap,showHistory:{ historyTab = 1; showingHistory = true })
+                }
                 footer
             }.padding(layout.padding).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top)
         }.background(LinearGradient(colors:[Color(red:0.065,green:0.085,blue:0.13),DashboardStyle.background],startPoint:.topLeading,endPoint:.bottomTrailing))
             .transaction { $0.animation = nil }
-            .sheet(isPresented:$showingHistory) { TrackingSheet(tracking:tracking,endTable:{ model.stop(); tracking.endTable() }) }
+            .sheet(isPresented:$showingHistory) { TrackingSheet(tracking:tracking,endTable:{ model.stop(); tracking.endTable() },initialTab:historyTab) }
             .onReceive(NotificationCenter.default.publisher(for:NSApplication.willTerminateNotification)) { _ in tracking.endTable(); tracking.store.flush() }
     }
     private var header: some View {
@@ -32,6 +38,7 @@ struct RootView: View {
                 Circle().fill(capture.choosing ? .orange : capture.running ? DashboardStyle.accent : .gray).frame(width:5,height:5)
                 Text(capture.choosing ? "SELECTING" : capture.running ? "SCANNING" : "STOPPED").font(.system(size:8,weight:.semibold)).tracking(0.7)
             }.padding(.horizontal,8).padding(.vertical,5).background(Color.white.opacity(0.04),in:Capsule())
+            Picker("Page",selection:$page) { Text("Live table").tag(0); Text("My statistics").tag(1) }.pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(width:190)
             Spacer(minLength:8)
             Toggle("Auto table",isOn:Binding(get:{ analysis.automatic },set:{ analysis.setAutomatic($0) }))
                 .toggleStyle(.switch).tint(DashboardStyle.accent).controlSize(.mini).font(.system(size:11)).fixedSize().help("Read pot, stacks and opponents automatically. Turn off for manual inputs.")
@@ -43,7 +50,7 @@ struct RootView: View {
                 if let window = NSApp.keyWindow, let screen = window.screen { window.setFrame(screen.visibleFrame,display:true,animate:false) }
             } label: { Image(systemName:"arrow.up.left.and.arrow.down.right") }.buttonStyle(.borderless).help("Fill the screen")
             AnalysisHelpButton()
-            Button { showingHistory = true } label: { Image(systemName:"chart.bar.xaxis") }.buttonStyle(.borderless).help("Opponent reveals and your saved play history").accessibilityLabel("Play history")
+            Button { historyTab = 0; showingHistory = true } label: { Image(systemName:"chart.bar.xaxis") }.buttonStyle(.borderless).help("Opponent reveals and your saved play history").accessibilityLabel("Play history")
             Button { model.showLogs() } label: { Image(systemName:"doc.text.magnifyingglass") }.buttonStyle(.borderless).help("Show diagnostic logs").accessibilityLabel("Show logs")
             Button(capture.running || capture.choosing ? "Stop" : "Start",systemImage:capture.running || capture.choosing ? "stop.fill" : "play.fill") {
                 if capture.running || capture.choosing { model.stop() } else { model.start() }
@@ -68,7 +75,7 @@ struct RootView: View {
                     .font(.system(size:12,weight:.medium)).foregroundStyle(analysis.isReview ? .orange : DashboardStyle.accent)
                 Text(analysis.isReview ? "Your saved cards + the visible board.\nLast decision EV stays frozen." : "Keep the captured table unobstructed.\nMove or resize this dashboard if needed.")
                     .font(.system(size:10)).foregroundStyle(.secondary).multilineTextAlignment(.trailing).lineLimit(2)
-                Button { showingHistory = true } label: {
+                Button { page = 1 } label: {
                     Text("\(tracking.archive.hands.count) hands · net \(tracking.totalNetCents.map { String(format:"%+.2f USD",Double($0)/100) } ?? "—")*")
                         .font(.system(size:10,design:.monospaced)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
                 }.buttonStyle(.plain).foregroundStyle(tracking.storageError == nil ? DashboardStyle.cyan : .orange)

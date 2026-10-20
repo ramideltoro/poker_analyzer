@@ -23,9 +23,11 @@ public struct TableSeat: Sendable, Equatable, Identifiable {
     public var seatNumber: Int?
     public var isNewPlayer: Bool
     public var revealedCards: [Card]
-    public init(id: Int,bounds: UnitRect,isHero: Bool,stackCents: Int?,betCents: Int? = nil,activity: SeatActivity,seatNumber: Int? = nil,isNewPlayer: Bool = false,revealedCards: [Card] = []) {
+    public var action: SeatAction?
+    public init(id: Int,bounds: UnitRect,isHero: Bool,stackCents: Int?,betCents: Int? = nil,activity: SeatActivity,seatNumber: Int? = nil,isNewPlayer: Bool = false,revealedCards: [Card] = [],action: SeatAction? = nil) {
         self.id = id; self.bounds = bounds; self.isHero = isHero; self.stackCents = stackCents; self.betCents = betCents; self.activity = activity
         self.seatNumber = seatNumber; self.isNewPlayer = isNewPlayer; self.revealedCards = revealedCards
+        self.action = action
     }
 }
 public struct TableObservation: Sendable, Equatable {
@@ -35,9 +37,11 @@ public struct TableObservation: Sendable, Equatable {
     public var sidePots: Bool
     public var issue: String?
     public var boardCards: [Card]
-    public init(potCents: Int?,callCents: Int?,seats: [TableSeat],sidePots: Bool = false,issue: String? = nil,boardCards: [Card] = []) {
+    public var controls: TableControls?
+    public init(potCents: Int?,callCents: Int?,seats: [TableSeat],sidePots: Bool = false,issue: String? = nil,boardCards: [Card] = [],controls: TableControls? = nil) {
         self.potCents = potCents; self.callCents = callCents; self.seats = seats; self.sidePots = sidePots; self.issue = issue
         self.boardCards = boardCards
+        self.controls = controls
     }
     public var hero: TableSeat? { seats.first(where: \.isHero) }
     public var activeOpponents: [TableSeat] { seats.filter { !$0.isHero && $0.activity == .active } }
@@ -58,7 +62,7 @@ public struct TableObservation: Sendable, Equatable {
     /// Ignore minor rectangle jitter, but never confirm changed money/activity from a previous frame.
     public func agrees(with other: TableObservation) -> Bool {
         guard potCents == other.potCents, callCents == other.callCents, sidePots == other.sidePots,
-              issue == other.issue, seats.count == other.seats.count else { return false }
+              issue == other.issue, controls == other.controls, seats.count == other.seats.count else { return false }
         return zip(seats,other.seats).allSatisfy { a,b in
             a.id == b.id && a.isHero == b.isHero && a.stackCents == b.stackCents && a.betCents == b.betCents && a.activity == b.activity &&
             abs(a.bounds.rect.midX-b.bounds.rect.midX) < 0.015 && abs(a.bounds.rect.midY-b.bounds.rect.midY) < 0.015

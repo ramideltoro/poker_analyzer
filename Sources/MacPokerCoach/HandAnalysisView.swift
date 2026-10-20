@@ -26,7 +26,7 @@ struct HandAnalysisView: View {
                         FinalHandPanel(result:analysis.display.result,current:analysis.equityIsCurrent,height:layout.categories)
                     }.frame(width:layout.middleWidth)
                     VStack(spacing:6) {
-                        Picker("Table details",selection:$tableTab) { Text("Stacks").tag(0); Text("Shown hands").tag(1) }
+                        Picker("Table details",selection:$tableTab) { Text("Stacks").tag(0); Text("Players").tag(1) }
                             .pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(height:24)
                         if tableTab == 0 { seatTable(height:layout.body-30) }
                         else { OpponentTrackingPanel(tracking:tracking,height:layout.body-30) }
@@ -227,7 +227,8 @@ struct AnalysisHelpButton: View {
                         Text("After your cards disappear, saved-card review updates what-if equity with the visible board and remaining opponents. Last decision EV stays frozen. Board clearing/replacement ends updates; capture loss clears readings. Hidden cards cannot confirm hand identity.")
                         Text("Muted values are previous confirmed readings. Keep one entire table visible, including your cards, pot, player stacks and action controls. Seat labels identify screen positions, not player identities.")
                         Text("Minimum pot to call = call × (1 − equity) ÷ equity. Folding adds $0 more. Raising needs assumptions about extra chips, equity when called and fold frequency; use the scenario calculator. These prices do not account for later bets or rake.")
-                        Text("Shown-hand tracking continues without your cards while the table remains readable. Opponent profiles are memory-only and clear on lost continuity. Identical anonymous replacements can be invisible: use End table before switching tables. Your own observations persist locally. Observed net is measured at preflop chip checkpoints; top-ups and cash removals must be recorded to adjust it. No VPIP/PFR or inferred call/raise action is reported without reliable action evidence.")
+                        Text("Suggested actions are rule-based estimates. CALL/FOLD compare calling equity with the price; CHECK is free. A RAISE is suggested only for a confirmed-size heads-up river value raise with an unbeatable hand. General raises need calling-range and fold assumptions. Recommendations clear when the current inputs are unsupported.")
+                        Text("Shown-hand and action-label tracking continue without your cards while the table remains readable. Opponent profiles are memory-only and clear on lost continuity. Identical anonymous replacements can be invisible: use End table before switching tables. Your own observations persist locally. My statistics explains sampled Play/PFR rates and action-mix percentages. Observed net uses preflop chip checkpoints; record top-ups and cash removals to adjust it.")
                     }.font(.callout).padding(20).fixedSize(horizontal:false,vertical:true)
                 }.frame(width:430,height:520)
             }

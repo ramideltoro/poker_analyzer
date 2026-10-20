@@ -114,6 +114,7 @@ import Combine
                                   "table_observed":"\(scan.table != nil)","table_confirmed":"\(analysis.tableConfirmed)","seats_read":"\(scan.table?.seats.count ?? 0)",
                                   "readable_stacks":"\(scan.table?.seats.filter { $0.stackCents != nil }.count ?? 0)","unclear_seats":"\(scan.table?.seats.filter { $0.activity == .unknown }.count ?? 0)",
                                   "pot_read":"\(scan.table?.potCents != nil)","call_read":"\(scan.table?.callCents != nil)","side_pots_detected":"\(scan.table?.sidePots ?? false)",
-                                  "table_data_status":scan.table?.incompleteReason ?? (scan.table == nil ? "no_table" : "complete"),"automatic_ev_available":"\(analysis.automatic && analysis.callEstimate != nil)"])
+                                  "table_data_status":scan.table?.incompleteReason ?? (scan.table == nil ? "no_table" : "complete"),"automatic_ev_available":"\(analysis.automatic && analysis.callEstimate != nil)",
+                                  "explicit_action_labels":"\(scan.table?.seats.filter { $0.action != nil }.count ?? 0)","opponent_profiles":"\(tracking.opponents.count)","own_hand_action_count":"\(tracking.currentHand?.actions?.count ?? 0)"])
     }
 }
