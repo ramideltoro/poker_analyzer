@@ -5,7 +5,7 @@ import Combine
 
 @MainActor final class AppModel: ObservableObject {
     @Published private(set) var hand: LiveHand?
-    @Published private(set) var status = "Click Start and choose the monitor containing your table."
+    @Published private(set) var status = "Click Start and choose the Safari poker window."
     @Published private(set) var faces = 0
     @Published private(set) var scanned = 0
     @Published private(set) var milliseconds = 0
@@ -21,6 +21,7 @@ import Combine
     private var stabilizer = ReadingStabilizer()
     private var reviewTracker = FoldReviewTracker()
     private var generation = UUID()
+    private var noCardsSince: Date?
     private var busy = false
     private var pending: (CGImage,Date,[UnitRect])?
     private var watchdog: Timer?
@@ -37,7 +38,7 @@ import Combine
         }
         log.write("app_launched",["version":Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development","build":Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "unknown","os":ProcessInfo.processInfo.operatingSystemVersionString,"privacy":"metadata_only_no_images_or_card_values"])
         capture.onFrame = { [weak self] image,time,excluded in self?.receive(image,time:time,excluded:excluded) }
-        capture.onStarted = { [weak self] in self?.status = "Scanning the selected monitor for visible cards…" }
+        capture.onStarted = { [weak self] in self?.status = "Scanning the selected poker source for visible cards…" }
         capture.onInvalidated = { [weak self] reason in
             guard let self else { return }
             self.clear(reason,keepLayout:self.capture.running)
@@ -46,7 +47,7 @@ import Combine
             Task { @MainActor in self?.expire() }
         }
     }
-    func start() { scanned = 0; receivedFrames = 0; candidates = 0; faces = 0; milliseconds = 0; lastScan = nil; log.write("start_clicked"); capture.chooseMonitor() }
+    func start() { scanned = 0; receivedFrames = 0; candidates = 0; faces = 0; milliseconds = 0; lastScan = nil; log.write("start_clicked"); capture.chooseSource() }
     func stop() { capture.stop() }
     func showLogs() {
         log.flush()
@@ -54,7 +55,7 @@ import Combine
         else { status = "Diagnostic logs could not be created in Application Support." }
     }
     func clear(_ reason: String,keepLayout: Bool = false) {
-        generation = UUID(); busy = false; pending = nil; stabilizer.reset(keepLayout:keepLayout); hand = nil; faces = 0; lastScan = nil; status = reason
+        generation = UUID(); busy = false; pending = nil; noCardsSince = nil; stabilizer.reset(keepLayout:keepLayout); hand = nil; faces = 0; lastScan = nil; status = reason
         reviewTracker.reset(); analysis.reset()
         tracking.endTable(reason)
         log.write("readings_cleared",["reason":reason,"layout_retained":"\(stabilizer.hasLayout)"])
@@ -111,13 +112,19 @@ import Combine
         status = hand?.isReview == true ? "Saved hole cards · continuing visible-board what-if review" : result.1
         analysis.update(hand,table:scan.table)
         if scan.cards.isEmpty && !stabilizer.hasLayout { status = scan.diagnostics.summary }
+        if scan.cards.isEmpty {
+            if noCardsSince == nil { noCardsSince = scan.timestamp }
+            if let noCardsSince, scan.timestamp.timeIntervalSince(noCardsSince) >= 8, hand == nil {
+                status = "Scanning continuously · no readable cards. If cards are visible, Stop → Start and select the Safari poker window."
+            }
+        } else { noCardsSince = nil }
         let advice = analysis.actionAdvice
         log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","saved_card_review":"\(hand?.isReview == true)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)",
                                   "table_observed":"\(scan.table != nil)","table_confirmed":"\(analysis.tableConfirmed)","seats_read":"\(scan.table?.seats.count ?? 0)",
                                   "readable_stacks":"\(scan.table?.seats.filter { $0.stackCents != nil }.count ?? 0)","unclear_seats":"\(scan.table?.seats.filter { $0.activity == .unknown }.count ?? 0)",
                                   "pot_read":"\(scan.table?.potCents != nil)","call_read":"\(scan.table?.callCents != nil)","side_pots_detected":"\(scan.table?.sidePots ?? false)",
                                   "table_data_status":scan.table?.incompleteReason ?? (scan.table == nil ? "no_table" : "complete"),"automatic_ev_available":"\(analysis.automatic && analysis.callEstimate != nil)",
-                                  "explicit_action_labels":"\(scan.table?.seats.filter { $0.action != nil }.count ?? 0)","opponent_profiles":"\(tracking.opponents.count)","own_hand_action_count":"\(tracking.currentHand?.actions?.count ?? 0)",
+                                  "tracking_usable":"\(scan.table?.trackingUsable ?? false)","acting_seats":"\(scan.table?.seats.filter(\.isActing).count ?? 0)","opponent_actions":"\(tracking.opponents.reduce(0) { $0+$1.statistics.total })","opponent_inferred_actions":"\(tracking.opponents.reduce(0) { $0+$1.statistics.inferredCount })","explicit_action_labels":"\(scan.table?.seats.filter { $0.action != nil }.count ?? 0)","opponent_profiles":"\(tracking.opponents.count)","own_hand_action_count":"\(tracking.currentHand?.actions?.count ?? 0)",
                                   "advice_action":advice.title,"advice_basis":advice.basis,"advice_close":"\(advice.marginal)","advice_available":"\(advice.kind != nil)","advice_state":advice.state.rawValue,"action_controls_confirmed":"\(analysis.actionControlsConfirmed)"])
     }
 }

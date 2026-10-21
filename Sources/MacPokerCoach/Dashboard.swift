@@ -36,7 +36,7 @@ struct RootView: View {
             Text("Live Card Reader").font(.system(size:17,weight:.semibold))
             HStack(spacing:5) {
                 Circle().fill(capture.choosing ? .orange : capture.running ? DashboardStyle.accent : .gray).frame(width:5,height:5)
-                Text(capture.choosing ? "SELECTING" : capture.running ? "SCANNING" : "STOPPED").font(.system(size:8,weight:.semibold)).tracking(0.7)
+                Text(capture.choosing ? "SELECTING" : capture.running ? (capture.windowCapture ? "WINDOW" : "MONITOR") : "STOPPED").font(.system(size:8,weight:.semibold)).tracking(0.7)
             }.padding(.horizontal,8).padding(.vertical,5).background(Color.white.opacity(0.04),in:Capsule())
             Picker("Page",selection:$page) { Text("Live table").tag(0); Text("My statistics").tag(1) }.pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(width:190)
             Spacer(minLength:8)
@@ -73,7 +73,7 @@ struct RootView: View {
             VStack(alignment:.trailing,spacing:7) {
                 Label(analysis.isReview ? "Saved-card review" : model.hand == nil ? "Waiting for cards" : "Confirmed cards",systemImage:analysis.isReview ? "clock.arrow.circlepath" : "suit.club")
                     .font(.system(size:12,weight:.medium)).foregroundStyle(analysis.isReview ? .orange : DashboardStyle.accent)
-                Text(analysis.isReview ? "Your saved cards + the visible board.\nLast decision EV stays frozen." : "Keep the captured table unobstructed.\nMove or resize this dashboard if needed.")
+                Text(analysis.isReview ? "Your saved cards + the visible board.\nLast decision EV stays frozen." : "Select the Safari poker window on Start.\nKeep the table tab open and readable.")
                     .font(.system(size:10)).foregroundStyle(.secondary).multilineTextAlignment(.trailing).lineLimit(2)
                 Button { page = 1 } label: {
                     Text("\(tracking.archive.hands.count) hands · net \(tracking.totalNetCents.map { String(format:"%+.2f USD",Double($0)/100) } ?? "—")*")

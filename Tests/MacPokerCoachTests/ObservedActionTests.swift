@@ -16,8 +16,8 @@ final class ObservedActionTests: XCTestCase {
         for _ in 0..<5 { XCTAssertNil(scanner.accept(changed,previous:raised,round:round,street:3,time:time)) }
         for _ in 0..<2 { XCTAssertNil(scanner.accept(seat(nil,stack:800,bet:200),previous:changed,round:round,street:3,time:time)) }
         let reraised = seat(.raise,stack:600,bet:400)
-        XCTAssertNil(scanner.accept(reraised,previous:seat(nil,stack:800,bet:200),round:round,street:3,time:time))
-        let event = scanner.accept(reraised,previous:reraised,round:round,street:3,time:time)
+        let event = scanner.accept(reraised,previous:seat(nil,stack:800,bet:200),round:round,street:3,time:time)
+        XCTAssertNil(scanner.accept(reraised,previous:reraised,round:round,street:3,time:time))
         XCTAssertEqual(event?.kind,.raise); XCTAssertEqual(event?.addedCents,200)
     }
     func testFoldDoesNotCountAgainWhenBoardAdvancesAndSameLabelPersists() {
@@ -127,5 +127,16 @@ extension ActionTrackingIntegrationTests {
         XCTAssertEqual(t.opponents.first?.statistics.count(.raise),250)
         XCTAssertEqual(t.measuredHands.count,249)
         t.endTable(); XCTAssertEqual(t.ownStatistics.total,500); XCTAssertTrue(t.opponents.isEmpty)
+    }
+}
+
+extension ObservedActionTests {
+    func testShortPaidLabelNeedsMatchingChipCorroborationOtherwiseTwoReadings() {
+        var scanner=ActionScanner(); let round=UUID(), time=Date()
+        let event=scanner.accept(seat(.call,stack:950,bet:50),previous:seat(nil),round:round,street:3,time:time)
+        XCTAssertEqual(event?.kind,.call); XCTAssertEqual(event?.evidence,.label)
+        var other=ActionScanner()
+        XCTAssertNil(other.accept(seat(.call,stack:950,bet:40),previous:seat(nil),round:round,street:3,time:time))
+        XCTAssertEqual(other.accept(seat(.call,stack:950,bet:40),previous:seat(.call,stack:950,bet:40),round:round,street:3,time:time)?.kind,.call)
     }
 }

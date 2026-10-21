@@ -135,7 +135,18 @@ public struct ReadingStabilizer {
         if !keepLayout { heroAnchor = []; boardAnchor = [] }
     }
     public mutating func accept(_ scan: CardScan) -> (LiveHand?,String) {
-        let selection = CardGrouping.select(scan.cards,near:heroAnchor)
+        var selection = CardGrouping.select(scan.cards,near:heroAnchor)
+        if selection.issue != nil, let table = scan.table, table.trackingUsable, table.issue == nil,
+           table.potCents != nil, let hero = table.hero, hero.activity == .active {
+            let fresh = CardGrouping.select(scan.cards)
+            if fresh.issue == nil, let first = fresh.hole.first {
+                let center = fresh.hole.map { $0.bounds.rect.midX }.reduce(0,+)/2
+                if abs(center-hero.bounds.rect.midX) < first.bounds.width*1.5,
+                   hero.bounds.y >= first.bounds.y, hero.bounds.y < first.bounds.rect.maxY+first.bounds.height {
+                    selection = fresh // still requires normal two-frame confirmation below
+                }
+            }
+        }
         defer { previous = selection }
         if let issue = selection.issue { return (nil,issue) }
         guard let old = previous, old.issue == nil,

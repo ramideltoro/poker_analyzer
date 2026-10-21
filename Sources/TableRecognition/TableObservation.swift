@@ -24,10 +24,12 @@ public struct TableSeat: Sendable, Equatable, Identifiable {
     public var isNewPlayer: Bool
     public var revealedCards: [Card]
     public var action: SeatAction?
-    public init(id: Int,bounds: UnitRect,isHero: Bool,stackCents: Int?,betCents: Int? = nil,activity: SeatActivity,seatNumber: Int? = nil,isNewPlayer: Bool = false,revealedCards: [Card] = [],action: SeatAction? = nil) {
+    public var isActing: Bool
+    public init(id: Int,bounds: UnitRect,isHero: Bool,stackCents: Int?,betCents: Int? = nil,activity: SeatActivity,seatNumber: Int? = nil,isNewPlayer: Bool = false,revealedCards: [Card] = [],action: SeatAction? = nil,isActing: Bool = false) {
         self.id = id; self.bounds = bounds; self.isHero = isHero; self.stackCents = stackCents; self.betCents = betCents; self.activity = activity
         self.seatNumber = seatNumber; self.isNewPlayer = isNewPlayer; self.revealedCards = revealedCards
         self.action = action
+        self.isActing = isActing
     }
 }
 public struct TableObservation: Sendable, Equatable {
@@ -38,10 +40,12 @@ public struct TableObservation: Sendable, Equatable {
     public var issue: String?
     public var boardCards: [Card]
     public var controls: TableControls?
-    public init(potCents: Int?,callCents: Int?,seats: [TableSeat],sidePots: Bool = false,issue: String? = nil,boardCards: [Card] = [],controls: TableControls? = nil) {
+    public var trackingUsable: Bool
+    public init(potCents: Int?,callCents: Int?,seats: [TableSeat],sidePots: Bool = false,issue: String? = nil,boardCards: [Card] = [],controls: TableControls? = nil,trackingUsable: Bool? = nil) {
         self.potCents = potCents; self.callCents = callCents; self.seats = seats; self.sidePots = sidePots; self.issue = issue
         self.boardCards = boardCards
         self.controls = controls
+        self.trackingUsable = trackingUsable ?? (issue == nil)
     }
     public var hero: TableSeat? { seats.first(where: \.isHero) }
     public var activeOpponents: [TableSeat] { seats.filter { !$0.isHero && $0.activity == .active } }

@@ -55,3 +55,15 @@ final class ReaderModelTests: XCTestCase {
         model.acceptScan(CardScan(cards:pair,timestamp:next),now:next); XCTAssertNotNil(model.hand)
     }
 }
+
+extension ReaderModelTests {
+    @MainActor func testProlongedBlankSourceGivesRecoveryInstructionAndLaterHandsRecover() {
+        let app=AppModel(log:.disabled), start=Date()
+        for i in 0..<12 { let t=start.addingTimeInterval(Double(i)); app.acceptScan(CardScan(cards:[],timestamp:t),now:t) }
+        XCTAssertTrue(app.status.contains("select the Safari poker window"))
+        let time=start.addingTimeInterval(12)
+        let pair=["Ah","Kd"].enumerated().map { i,code in DetectedCard(card:Card(code)!,bounds:UnitRect(x:0.4+Double(i)*0.08,y:0.7,width:0.07,height:0.12)) }
+        for _ in 0..<2 { app.acceptScan(CardScan(cards:pair,timestamp:time),now:time) }
+        XCTAssertNotNil(app.hand); XCTAssertFalse(app.status.contains("Stop → Start"))
+    }
+}

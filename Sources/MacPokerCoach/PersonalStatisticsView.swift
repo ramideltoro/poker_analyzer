@@ -2,6 +2,7 @@ import SwiftUI
 import TableRecognition
 
 func statPercent(_ value: Double?) -> String { value.map { String(format:"%.0f%%",$0*100) } ?? "—" }
+func samplePercent(_ value: Double?) -> String { value.map { String(format:"%.0f%%",$0*100) } ?? "n=0" }
 func statDollars(_ cents: Int?,signed: Bool = false) -> String { cents.map { String(format:signed ? "%+.2f USD" : "$%.2f",Double($0)/100) } ?? "—" }
 
 struct PersonalStatisticsView: View {
@@ -43,7 +44,7 @@ struct PersonalStatisticsView: View {
                     detail("Folds","\(actions.count(.fold))","\(statPercent(actions.rate(.fold))) of recorded actions")
                 }.frame(maxHeight:.infinity)
                 HStack(spacing:10) {
-                    detail("Checks / calls / bets","\(actions.count(.check)) / \(actions.count(.call)) / \(actions.count(.bet))","Confirmed action labels only")
+                    detail("Checks / calls / bets","\(actions.count(.check)) / \(actions.count(.call)) / \(actions.count(.bet))","Labels + marked estimates")
                     detail("Largest win / loss","\(statDollars(stats.largestWin)) / \(statDollars(stats.largestLoss))","Per measured hand interval")
                     detail("Max drawdown",statDollars(stats.drawdown),"Peak-to-trough measured decline")
                     detail("Known raise additions",statDollars(actions.pricedRaises > 0 ? actions.knownRaiseAddedCents : nil),"\(actions.pricedRaises) / \(actions.count(.raise)) raises with chip evidence")
@@ -91,9 +92,9 @@ struct ActionMixChart: View {
                         }
                     }.frame(height:7)
                     Text("\(statistics.count(kind)) · \(statPercent(statistics.rate(kind)))").font(.system(size:10,design:.monospaced)).monospacedDigit().frame(width:75,alignment:.trailing)
-                }.frame(maxHeight:.infinity).help("\(kind.label) labels divided by all recorded action labels. This is not a per-hand opportunity rate.")
+                }.frame(maxHeight:.infinity).help("\(kind.label) actions divided by all recorded actions (including marked estimates). This is not a per-hand opportunity rate.")
             }
-            Text("Confirmed labels, including after your fold").font(.system(size:9)).foregroundStyle(.tertiary).frame(height:12)
+            Text("\(statistics.total-statistics.inferredCount) labels · \(statistics.inferredCount) inferred · after-fold tracking").font(.system(size:9)).foregroundStyle(.tertiary).frame(height:12)
         }.padding(12).frame(maxWidth:.infinity,maxHeight:.infinity).dashboardPanel()
     }
 }
@@ -131,8 +132,8 @@ struct StatisticsDefinitions: View {
     var body: some View {
         VStack(alignment:.leading,spacing:12) {
             Text("Statistics and sample sizes").font(.headline)
-            Text("Play % = preflop hands with a recorded call, bet or raise ÷ preflop hands with any recorded action. Blinds alone do not count. Preflop raise % uses the same denominator and counts hands with a raise label. These sampled rates can differ from complete-history VPIP/PFR.")
-            Text("Raise, fold, check, call and bet percentages are shares of all recorded actions, across streets. A hand can contain several actions. Every action needs two consistent high-confidence labels at the same seat. Missed or short labels reduce coverage and can bias the percentages.")
+            Text("Play % = preflop hands with a recorded call, bet or raise ÷ preflop hands with any recorded action. Blinds alone do not count. Preflop raise % uses the same denominator and counts hands with a recorded raise. These sampled rates can differ from complete-history VPIP/PFR.")
+            Text("Raise, fold, check, call and bet percentages are shares of all recorded actions, across streets. A hand can contain several actions. Labels require two consistent readings, or one label corroborated by matching stack/bet movement. Inferred chip actions require stable stack, bet and pot changes. Estimated checks/folds also require a confirmed turn change. History marks each source. Missed actions bias percentages.")
             Text("Gross won/lost sum positive/negative measured hand intervals. Net uses preflop balance checkpoints minus recorded cash changes. A measured win includes blinds/rake already reflected in the balance, not the gross pot payout. Add top-ups/cash removals before the next checkpoint. Missing hands can combine intervals.")
             Text("Known raise additions include only raises with a readable stack reduction as the label appeared. Unknown amounts remain absent. Max drawdown is the largest decline from a previous peak in measured hand results. Old hands without action labels still count as observed hands, not as checks or folds.")
         }.font(.callout).fixedSize(horizontal:false,vertical:true)

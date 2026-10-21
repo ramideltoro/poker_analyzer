@@ -21,22 +21,22 @@ struct OpponentTrackingPanel: View {
             ForEach(0..<8,id:\.self) { i in
                 let player = tracking.opponents.sorted { $0.screenPosition < $1.screenPosition }[safe:i]
                 let stats = player?.statistics
+                let values = player == nil ? Array(repeating:"—",count:4) : [stats?.playRate,stats?.rate(.raise),stats?.rate(.fold),stats?.rate(.check)].map { value in samplePercent(value)+(value != nil && (stats?.inferredCount ?? 0) > 0 ? "*" : "") }
                 VStack(alignment:.leading,spacing:1) {
                     HStack(spacing:3) {
                         Text(player?.label ?? "—").font(.system(size:9,weight:.medium)).lineLimit(1).minimumScaleFactor(0.7).frame(width:40,alignment:.leading)
-                        ForEach([statPercent(stats?.playRate),statPercent(stats?.rate(.raise)),statPercent(stats?.rate(.fold)),statPercent(stats?.rate(.check))].indices,id:\.self) { j in
-                            let values = [statPercent(stats?.playRate),statPercent(stats?.rate(.raise)),statPercent(stats?.rate(.fold)),statPercent(stats?.rate(.check))]
+                        ForEach(values.indices,id:\.self) { j in
                             Text(values[j]).font(.system(size:10,design:.rounded)).monospacedDigit().frame(maxWidth:.infinity)
                         }
                     }
                     HStack {
-                        Text(player.map { "\($0.statistics.total) actions · \($0.statistics.preflopHands) PF" } ?? "Waiting for seat").foregroundStyle(.secondary)
+                        Text(player.map { "\($0.observedRounds.count) rounds · \($0.statistics.total) acts · \($0.flopRounds.count) flops" } ?? "Waiting for seat").foregroundStyle(.secondary)
                         Spacer(minLength:2)
-                        Text(player?.shown.last?.cards.map(\.display).joined(separator:" ") ?? "—").foregroundStyle(DashboardStyle.cyan)
+                        Text(player?.actions.last.map { $0.kind.label+($0.inferred ? "*" : "") } ?? player?.shown.last?.cards.map(\.display).joined(separator:" ") ?? "—").foregroundStyle(DashboardStyle.cyan)
                     }.font(.system(size:8)).lineLimit(1)
-                }.frame(height:max(24,(height-102)/8)).help("Play: entered pot in sampled preflop hands. Raise/Fold/Check: shares of confirmed action labels. Repeated frames count once. Open history for counts, definitions and shown cards.")
+                }.frame(height:max(24,(height-102)/8)).help("Play: entered pot in sampled preflop hands. Raise/Fold/Check: recorded action mix. n=0 means no action samples. * includes inferred actions. Flops count rounds with active cards visible on a board. Open history for evidence and samples.")
             }
-            Text("Play = sampled hands; others = action mix. More details in Play history.")
+            Text("n=0: no samples. * includes inferred actions. Flops = visible participation; details in history.")
                 .font(.system(size:9)).foregroundStyle(.tertiary).lineLimit(2).frame(height:26,alignment:.topLeading)
         }.padding(10).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height).dashboardPanel()
     }
@@ -91,14 +91,20 @@ struct TrackingSheet: View {
                             }
                             let stats = player.statistics
                             HStack(spacing:18) {
-                                opponentMetric("Play",statPercent(stats.playRate),"\(stats.playedHands)/\(stats.preflopHands) preflop hands")
-                                opponentMetric("Preflop raise",statPercent(stats.preflopRaiseRate),"\(stats.raisedPreflopHands)/\(stats.preflopHands) preflop hands")
-                                opponentMetric("Raise",statPercent(stats.rate(.raise)),"\(stats.count(.raise))/\(stats.total) actions")
-                                opponentMetric("Fold",statPercent(stats.rate(.fold)),"\(stats.count(.fold))/\(stats.total) actions")
-                                opponentMetric("Check",statPercent(stats.rate(.check)),"\(stats.count(.check))/\(stats.total) actions")
-                                opponentMetric("Call / bet","\(stats.count(.call)) / \(stats.count(.bet))","Recorded labels")
+                                opponentMetric("Play",samplePercent(stats.playRate),"\(stats.playedHands)/\(stats.preflopHands) preflop hands")
+                                opponentMetric("Preflop raise",samplePercent(stats.preflopRaiseRate),"\(stats.raisedPreflopHands)/\(stats.preflopHands) preflop hands")
+                                opponentMetric("Raise",samplePercent(stats.rate(.raise)),"\(stats.count(.raise))/\(stats.total) actions")
+                                opponentMetric("Fold",samplePercent(stats.rate(.fold)),"\(stats.count(.fold))/\(stats.total) actions")
+                                opponentMetric("Check",samplePercent(stats.rate(.check)),"\(stats.count(.check))/\(stats.total) actions")
+                                opponentMetric("Call / bet","\(stats.count(.call)) / \(stats.count(.bet))","Observed actions")
                             }
-                            Text("Play/PFR use sampled preflop hands. Other percentages use all confirmed action labels. Missed actions can bias rates; these are not complete-history VPIP/PFR.").font(.caption).foregroundStyle(.secondary)
+                            Text("Play/PFR use sampled preflop hands. Other percentages use recorded actions, including estimates. Missed actions bias rates; these are not complete-history VPIP/PFR.").font(.caption).foregroundStyle(.secondary)
+                            Text("Evidence: \(stats.total-stats.inferredCount) labels · \(stats.inferredCount) inferred. Flop visible: \(player.flopRounds.count)/\(player.observedRounds.count) observed rounds (partial rounds included; not VPIP).")
+                                .font(.caption).foregroundStyle(.secondary)
+                            ForEach(Array(player.actions.suffix(8).reversed())) { event in
+                                Text("\(event.time.formatted(date:.omitted,time:.standard)) · \(event.kind.label) · \(event.evidenceDescription) · street \(event.street)")
+                                    .font(.caption).foregroundStyle(event.inferred ? .orange : DashboardStyle.cyan)
+                            }
                             if player.shown.isEmpty { Text("No two-card reveal confirmed.").font(.caption).foregroundStyle(.secondary) }
                             ForEach(player.shown.reversed()) { reveal in
                                 HStack {
@@ -161,7 +167,7 @@ struct TrackingSheet: View {
                             Text("\(record.startedPreflop ? "First seen preflop" : "Partial hand") · \(record.cardsDisappeared ? "Cards disappeared (possible fold/muck)" : "No disappearance confirmed")")
                                 .font(.caption).foregroundStyle(.secondary)
                             ForEach(record.actions ?? []) { event in
-                                Text("\(event.time.formatted(date:.omitted,time:.standard)) · \(event.kind.label) · added \(trackedMoney(event.addedCents)) · wager to \(trackedMoney(event.wagerToCents)) · street \(event.street)")
+                                Text("\(event.time.formatted(date:.omitted,time:.standard)) · \(event.kind.label) · \(event.evidenceDescription) · added \(trackedMoney(event.addedCents)) · wager to \(trackedMoney(event.wagerToCents)) · street \(event.street)")
                                     .font(.caption).foregroundStyle(DashboardStyle.cyan)
                             }
                             ForEach(record.observations) { event in

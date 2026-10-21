@@ -42,7 +42,7 @@ private final class FrameSink: NSObject, SCStreamOutput {
                 return
             }
             let now = Date()
-            guard now.timeIntervalSince(last) >= 0.45 else { return }
+            guard now.timeIntervalSince(last) >= 0.18 else { return }
             last = now
             receive?(image,now,frameStatus == .idle ? "stream_idle" : "stream")
         }
@@ -52,6 +52,7 @@ private final class FrameSink: NSObject, SCStreamOutput {
 @MainActor final class CaptureController: NSObject, ObservableObject, SCContentSharingPickerObserver, SCStreamDelegate {
     @Published private(set) var running = false
     @Published private(set) var choosing = false
+    @Published private(set) var windowCapture = false
     var onFrame: ((CGImage,Date,[UnitRect]) -> Void)?
     var onStarted: (() -> Void)?
     var onInvalidated: ((String) -> Void)?
@@ -72,21 +73,22 @@ private final class FrameSink: NSObject, SCStreamOutput {
             Task { @MainActor in self?.stop(reason:"Screen reading stopped for sleep. Click Start after waking.") }
         }
     }
-    func chooseMonitor() {
-        stop(reason:"Choose the monitor containing your table."); choosing = true
+    func chooseSource() {
+        stop(reason:"Choose the Safari poker window (recommended), or its monitor."); choosing = true
         delivered = 0; lastCoverage = nil
-        log.write("picker_opened",["mode":"singleDisplay","global_permission_preflight":"\(CGPreflightScreenCaptureAccess())"])
+        log.write("picker_opened",["mode":"singleWindow_or_singleDisplay","global_permission_preflight":"\(CGPreflightScreenCaptureAccess())"])
         let picker = SCContentSharingPicker.shared
         var config = SCContentSharingPickerConfiguration()
-        config.allowedPickerModes = [.singleDisplay]; config.allowsChangingSelectedContent = false
-        picker.defaultConfiguration = config; picker.isActive = true; picker.present(using:.display)
+        config.allowedPickerModes = [.singleWindow,.singleDisplay]; config.allowsChangingSelectedContent = false
+        config.excludedBundleIDs = ["local.livecardreader","local.macpokercoach"]
+        picker.defaultConfiguration = config; picker.isActive = true; picker.present(using:.window)
     }
-    func stop(reason: String = "Stopped. Click Start to watch your monitor.") {
+    func stop(reason: String = "Stopped. Click Start and choose the Safari window.") {
         log.write("capture_stopped",["reason":reason,"delivered_frames":"\(delivered)"])
         generation = UUID(); running = false; choosing = false
         sink?.receive = nil; sink?.status = nil; sink?.interrupted = nil; sink = nil
         if let stream { Task { try? await stream.stopCapture() } }; stream = nil
-        display = nil
+        display = nil; windowCapture = false
         previousExclusions = []
         if let activity { ProcessInfo.processInfo.endActivity(activity) }; activity = nil
         SCContentSharingPicker.shared.isActive = false; onInvalidated?(reason)
@@ -94,15 +96,18 @@ private final class FrameSink: NSObject, SCStreamOutput {
     private func start(_ selected: SCContentFilter) async {
         let token = generation
         log.write("picker_selected",["style":"\(selected.style.rawValue)","display_count":"\(selected.includedDisplays.count)","window_count":"\(selected.includedWindows.count)"])
-        guard selected.style == .display, let selectedDisplay = selected.includedDisplays.first else { stop(reason:"Select a monitor in Apple's screen-sharing picker."); return }
+        let selectedDisplay = selected.includedDisplays.first
+        let isWindow = selected.style == .window && selected.includedWindows.count == 1
+        guard isWindow || (selected.style == .display && selectedDisplay != nil) else { stop(reason:"Select one Safari window or one monitor in Apple's sharing picker."); return }
         do {
-            display = selectedDisplay
+            display = selectedDisplay; windowCapture = isWindow
             let config = SCStreamConfiguration()
             let scale = min(Double(selected.pointPixelScale),3840/max(1,selected.contentRect.width))
             config.width = max(1,Int(selected.contentRect.width*scale)); config.height = max(1,Int(selected.contentRect.height*scale))
-            config.minimumFrameInterval = CMTime(value:1,timescale:2)
+            config.minimumFrameInterval = CMTime(value:1,timescale:5)
+            config.ignoreShadowsSingleWindow = true
             config.queueDepth = 3; config.showsCursor = false; config.capturesAudio = false
-            log.write("capture_configured",["width":"\(config.width)","height":"\(config.height)","pixel_scale":"\(scale)","display_width":"\(selectedDisplay.frame.width)","display_height":"\(selectedDisplay.frame.height)"])
+            log.write("capture_configured",["width":"\(config.width)","height":"\(config.height)","pixel_scale":"\(scale)","source_kind":isWindow ? "window" : "display"])
             let sink = FrameSink()
             let logger = log
             sink.status = { raw in logger.write("stream_frame_status",["status_code":"\(raw)"]) }
@@ -125,8 +130,8 @@ private final class FrameSink: NSObject, SCStreamOutput {
             try await stream.startCapture()
             guard generation == token else { try? await stream.stopCapture(); return }
             running = true; lastDelivered = .distantPast
-            log.write("capture_started",["capture_mode":"picker_stream_only"])
-            activity = ProcessInfo.processInfo.beginActivity(options:.userInitiatedAllowingIdleSystemSleep,reason:"Continuously detect cards on the selected monitor")
+            log.write("capture_started",["capture_mode":"picker_stream_only","source_kind":isWindow ? "window" : "display"])
+            activity = ProcessInfo.processInfo.beginActivity(options:.userInitiatedAllowingIdleSystemSleep,reason:"Continuously read the selected poker source")
             onStarted?()
         } catch {
             guard generation == token else { return }
@@ -135,8 +140,16 @@ private final class FrameSink: NSObject, SCStreamOutput {
         }
     }
     private func deliver(_ image: CGImage,time: Date,source: String) {
-        guard time.timeIntervalSince(lastDelivered) >= 0.4, let display else { return }
+        guard time.timeIntervalSince(lastDelivered) >= 0.16 else { return }
         lastDelivered = time
+        if windowCapture {
+            // A desktop-independent selected window does not contain our dashboard.
+            // Display-coordinate exclusions would incorrectly hide parts of it.
+            delivered += 1
+            log.write("frame_received",["source":source,"source_kind":"window","frame":"\(delivered)","width":"\(image.width)","height":"\(image.height)","excluded_regions":"0","excluded_fraction":"0"])
+            onFrame?(image,time,[]); return
+        }
+        guard let display else { return }
         let mainHeight = NSScreen.screens.first?.frame.height ?? display.frame.height
         // Also ignore a still-open previous reader version, so it cannot become a false card source.
         let readerPIDs = Set(NSWorkspace.shared.runningApplications.filter { ["local.livecardreader","local.macpokercoach"].contains($0.bundleIdentifier ?? "") }.map(\.processIdentifier))
@@ -169,7 +182,7 @@ private final class FrameSink: NSObject, SCStreamOutput {
         onFrame?(image,time,exclusions)
     }
     nonisolated func contentSharingPicker(_ picker: SCContentSharingPicker,didCancelFor stream: SCStream?) {
-        Task { @MainActor in if self.choosing { self.stop(reason:"Monitor selection cancelled. Click Start to try again.") } }
+        Task { @MainActor in if self.choosing { self.stop(reason:"Source selection cancelled. Click Start to try again.") } }
     }
     nonisolated func contentSharingPicker(_ picker: SCContentSharingPicker,didUpdateWith filter: SCContentFilter,for stream: SCStream?) {
         Task { @MainActor in guard self.choosing else { return }; self.choosing = false; await self.start(filter) }

@@ -141,7 +141,7 @@ struct ActionAdvice: Equatable {
 
 extension HandAnalysisModel {
     var actionAdvice: ActionAdvice {
-        guard let hand = currentHand else { return ActionAdvice(title:"WAIT",reason:"No current cards are confirmed. A decision starts automatically once a fresh hand and its action buttons are readable.",kind:nil,availability:.cards) }
+        guard let hand = currentHand else { return ActionAdvice(title:"WAIT",reason:"No current cards are confirmed. Scanning continues; new readable cards restart decisions. If cards are visible, use Stop → Start to reselect the Safari window.",kind:nil,availability:.cards) }
         if hand.isReview { return ActionAdvice(title:"REVIEW",reason:"Only saved cards are available after your cards disappeared. What-if calculations continue; there is no live action for these saved cards.",kind:nil,basis:"SAVED CARDS",availability:.savedHand) }
         if automatic, actionControlsConfirmed, let table,
            let advice = ActionAdvice.immediate(hole:hand.hole.map(\.card),board:hand.board.map(\.card),table:table,confirmedSize:tableConfirmed) { return advice }

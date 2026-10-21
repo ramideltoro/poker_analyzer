@@ -7,7 +7,10 @@ public final class TableStateDetector: @unchecked Sendable {
     struct Text: Sendable { var value: String; var confidence: Float; var bounds: UnitRect }
     public init() {}
     public func scan(_ image: CGImage,cards: [DetectedCard],heroRegions: [UnitRect] = [],excluding: [UnitRect] = []) throws -> TableObservation? {
-        let selected = heroRegions.count == 2 ? CardGrouping.select(cards,near:heroRegions) : CardGrouping.select(cards)
+        let anchored = heroRegions.count == 2 ? CardGrouping.select(cards,near:heroRegions) : CardGrouping.select(cards)
+        let fresh = CardGrouping.select(cards)
+        let moved = anchored.issue != nil && fresh.issue == nil
+        let selected = moved ? fresh : anchored
         let heroVisible = selected.issue == nil && selected.hole.count == 2
         guard heroVisible || heroRegions.count == 2 else { return nil }
         let hole = heroVisible ? selected.hole.map(\.bounds) : heroRegions
@@ -18,19 +21,24 @@ public final class TableStateDetector: @unchecked Sendable {
             .intersection(CGRect(x:0,y:0,width:1,height:1))
         let texts = try recognize(image,region:region).filter { text in !excluding.contains { $0.rect.intersects(text.bounds.rect) } }
         let pots = texts.filter { $0.value.lowercased().hasPrefix("total pot:") && abs($0.bounds.rect.midX-centerX) < width*4 && $0.bounds.y < top-height }
-        guard pots.count == 1 else { return TableObservation(potCents:nil,callCents:nil,seats:[],issue:"Cannot locate a unique total pot near your cards.") }
-        let potText = pots[0], pot = labeledAmount(potText,"total pot:")
-        let centerY = potText.bounds.rect.midY+height*1.2
-        let tableArea = CGRect(x:centerX-width*10.5,y:potText.bounds.y-height*2.2,width:width*21,height:bottom-potText.bounds.y+height*2.8)
+        guard pots.count == 1 || (heroRegions.count == 2 && !moved) else { return TableObservation(potCents:nil,callCents:nil,seats:[],issue:"Cannot locate a unique total pot near your cards.") }
+        let potText = pots.count == 1 ? pots[0] : nil, pot = potText.flatMap { labeledAmount($0,"total pot:") }
+        let potY = potText?.bounds.y ?? max(0,top-height*3.5)
+        let centerY = potText.map { $0.bounds.rect.midY+height*1.2 } ?? top-height*2.2
+        let tableArea = CGRect(x:centerX-width*10.5,y:potY-height*2.2,width:width*21,height:bottom-potY+height*2.8)
             .intersection(CGRect(x:0,y:0,width:1,height:1))
         let panels = seatPanels(image,width:width,height:height).filter { tableArea.contains(CGPoint(x:$0.rect.midX,y:$0.rect.midY)) }
-        var seats = [TableSeat](), issue: String?
+        let heroPanel = panels.first { abs($0.rect.midX-centerX) < width*1.5 && $0.y >= top && $0.y <= bottom+height }
+        let controlsTop = max(bottom,(heroPanel?.rect.maxY ?? bottom)+height*0.25)
+        var seats = [TableSeat](), issue: String? = pot == nil ? "Total pot unreadable; seat tracking continues from the confirmed layout." : nil
+        var blocked = false
         if excluding.contains(where:{ $0.rect.intersects(tableArea) }) {
             issue = "Move the reader away from the table so every stack and card back is visible."
+            blocked = true
         }
         for panel in panels {
             if excluding.contains(where:{ $0.rect.intersects(panel.rect.insetBy(dx:0,dy:-panel.height*1.5)) }) {
-                issue = "A player panel is covered by the reader window."; continue
+                issue = "A player panel is covered by the reader window."; blocked = true; continue
             }
             let moneyRect = CGRect(x:panel.x+panel.width*0.32,y:panel.y+panel.height*0.08,width:panel.width*0.64,height:panel.height*0.8)
             let money = try recognize(image,region:moneyRect)
@@ -49,10 +57,20 @@ public final class TableStateDetector: @unchecked Sendable {
             let badge = CGRect(x:panel.x,y:panel.y,width:panel.width*0.29,height:panel.height)
             let numbers = texts.filter { $0.confidence >= 0.95 && badge.contains(CGPoint(x:$0.bounds.rect.midX,y:$0.bounds.rect.midY)) }
                 .compactMap { Int($0.value.trimmingCharacters(in:.whitespacesAndNewlines)) }.filter { (1...9).contains($0) }
-            let actionArea = CGRect(x:panel.x,y:panel.y-panel.height*0.12,width:panel.width,height:panel.height*1.5)
-            let observedActions = Set(texts.filter { $0.confidence >= 0.98 && actionArea.contains(CGPoint(x:$0.bounds.rect.midX,y:$0.bounds.rect.midY)) }.compactMap { SeatAction.parse($0.value) })
+            let actionArea = CGRect(x:panel.x,y:panel.y-panel.height*0.12,width:panel.width,height:panel.height*2.3)
+            func isActionText(_ text: Text) -> Bool {
+                // Available hero action buttons are not completed player actions.
+                let inControls = text.bounds.y >= controlsTop && abs(text.bounds.rect.midX-centerX) < width*7
+                return text.confidence >= 0.98 && !inControls && actionArea.contains(CGPoint(x:text.bounds.rect.midX,y:text.bounds.rect.midY))
+            }
+            var observedActions = Set((texts+money).filter(isActionText).compactMap { SeatAction.parse($0.value) })
+            if observedActions.isEmpty {
+                let area = CGRect(x:panel.x+panel.width*0.08,y:panel.y+panel.height*0.9,width:panel.width*0.92,height:panel.height*1.35)
+                let focused = try recognize(image,region:area).filter { text in !excluding.contains { $0.rect.intersects(text.bounds.rect) } }
+                observedActions = Set(focused.filter(isActionText).compactMap { SeatAction.parse($0.value) })
+            }
             seats.append(TableSeat(id:0,bounds:panel,isHero:hero,stackCents:stack,activity:activity,
-                                   seatNumber:numbers.count == 1 ? numbers[0] : nil,isNewPlayer:labels.contains { $0.contains("NEW PLAYER") },action:observedActions.count == 1 ? observedActions.first : nil))
+                                   seatNumber:numbers.count == 1 ? numbers[0] : nil,isNewPlayer:labels.contains { $0.contains("NEW PLAYER") },action:observedActions.count == 1 ? observedActions.first : nil,isActing:hasTurnBar(image,panel:panel)))
         }
         // Clockwise screen locations, with hero last to avoid angle wraparound from pixel jitter.
         // These IDs describe current geometry, not persistent player identities.
@@ -61,17 +79,17 @@ public final class TableStateDetector: @unchecked Sendable {
             return atan2($0.bounds.rect.midX-centerX,centerY-$0.bounds.rect.midY) < atan2($1.bounds.rect.midX-centerX,centerY-$1.bounds.rect.midY)
         }
         for i in seats.indices { seats[i].id = i+1 }
-        let actionTexts = texts.filter { $0.bounds.y > bottom && $0.bounds.y < bottom+height*2.7 && abs($0.bounds.rect.midX-centerX) < width*7 }
+        let actionTexts = texts.filter { $0.bounds.y >= controlsTop && $0.bounds.y < bottom+height*2.7 && abs($0.bounds.rect.midX-centerX) < width*7 }
         var (controls,call) = readActions(actionTexts,width:width,height:height)
         if call == nil {
             // OCR may merge a two-line button into one string in the whole-table
             // pass. Retry only the bounded action area; never reuse old buttons.
-            let area = CGRect(x:centerX-width*7,y:bottom,width:width*14,height:height*2.7)
+            let area = CGRect(x:centerX-width*7,y:controlsTop,width:width*14,height:max(0,bottom+height*2.7-controlsTop))
             let focused = try recognize(image,region:area).filter { text in !excluding.contains { $0.rect.intersects(text.bounds.rect) } }
             let retry = readActions(focused,width:width,height:height)
             if retry.1 != nil { (controls,call) = retry }
         }
-        let main = texts.filter { $0.value.lowercased().hasPrefix("main pot:") && abs($0.bounds.rect.midX-centerX) < width*4 && abs($0.bounds.y-potText.bounds.y) < height }
+        let main = texts.filter { $0.value.lowercased().hasPrefix("main pot:") && abs($0.bounds.rect.midX-centerX) < width*4 && abs($0.bounds.y-potY) < height }
         let mainAmount = main.count == 1 ? labeledAmount(main[0],"main pot:") : nil
         let side = texts.contains { $0.value.lowercased().contains("side pot") && abs($0.bounds.rect.midX-centerX) < width*4 } || (mainAmount != nil && mainAmount != pot)
         if !main.isEmpty && mainAmount == nil { issue = "The main-pot reading is unclear." }
@@ -94,7 +112,28 @@ public final class TableStateDetector: @unchecked Sendable {
         let board = CardGrouping.reviewBoard(cards,anchor:hole)?.map(\.card) ?? []
         let reveals = RevealedCards.associate(cards:cards,seats:seats,known:board+(heroVisible ? selected.hole.map(\.card) : []))
         for i in seats.indices { seats[i].revealedCards = reveals[i] }
-        return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue,boardCards:board,controls:controls)
+        if call != nil, controls.canCall || controls.canCheck {
+            for i in seats.indices { seats[i].isActing = seats[i].isHero }
+        }
+        let tracking = !blocked && seats.filter(\.isHero).count == 1 && (2...9).contains(seats.count)
+        return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue,boardCards:board,controls:controls,trackingUsable:tracking)
+    }
+    /// A thin neutral timer track below a seat; broad status strips and text are rejected.
+    func hasTurnBar(_ image: CGImage,panel: UnitRect) -> Bool {
+        let area = UnitRect(x:panel.x+panel.width*0.2,y:panel.rect.maxY+panel.height*0.18,width:panel.width*0.76,height:panel.height*0.67)
+        guard area.valid, let crop = image.cropping(to:area.pixels(image)), let p = SuitRecognizer.pixels(crop) else { return false }
+        let minimum = max(8,Int(Double(image.width)*panel.width*0.35)), maxHeight = max(2,Int(Double(image.height)*panel.height*0.22))
+        var rows = 0
+        for y in 0..<p.height {
+            var run = 0, longest = 0
+            for x in 0..<p.width {
+                let i = (y*p.width+x)*4, values = [Int(p.bytes[i]),Int(p.bytes[i+1]),Int(p.bytes[i+2])]
+                if values.min()! > 100 && values.max()!-values.min()! < 45 { run += 1; longest = max(longest,run) } else { run = 0 }
+            }
+            if longest >= minimum { rows += 1 }
+            else { if rows >= 2 && rows <= maxHeight { return true }; rows = 0 }
+        }
+        return rows >= 2 && rows <= maxHeight
     }
     /// Whitespace is normalized; card characters and monetary digits are never guessed.
     func readActions(_ texts: [Text],width: Double,height: Double) -> (TableControls,Int?) {

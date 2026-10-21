@@ -1,6 +1,7 @@
 import Foundation
 import TableRecognition
 
+enum ActionEvidence: String, Codable, Sendable { case label, chips, turn, cards }
 struct TrackedAction: Codable, Identifiable, Equatable, Sendable {
     var id = UUID()
     var time: Date
@@ -9,11 +10,22 @@ struct TrackedAction: Codable, Identifiable, Equatable, Sendable {
     var kind: SeatAction
     var addedCents: Int?
     var wagerToCents: Int?
+    var evidence: ActionEvidence?
+    var evidenceDescription: String {
+        switch evidence {
+        case .chips: return "Inferred: chips + pot"
+        case .turn: return "Inferred: turn change"
+        case .cards: return "Inferred: cards + turn change"
+        default: return "Read action label"
+        }
+    }
+    var inferred: Bool { evidence != nil && evidence != .label }
 }
 
 struct ActionStatistics {
     var events: [TrackedAction]
     var total: Int { events.count }
+    var inferredCount: Int { events.filter(\.inferred).count }
     func count(_ kind: SeatAction) -> Int { events.filter { $0.kind == kind }.count }
     func rate(_ kind: SeatAction) -> Double? { total > 0 ? Double(count(kind))/Double(total) : nil }
     var preflopHands: Int { Set(events.filter { $0.street == 0 }.map(\.round)).count }
@@ -66,7 +78,12 @@ struct ActionScanner {
             candidate = action; baseline = previous; candidateTime = time; candidateCount = 1
         } else { candidateCount += 1 }
         clearFrames = 0
-        guard candidateCount >= 2 else { return nil }
+        let chipConfirmation: Bool
+        if action.entersPot, let before = baseline?.stackCents, let now = seat.stackCents,
+           let beforeBet = baseline?.betCents, let afterBet = seat.betCents {
+            chipConfirmation = before > now && afterBet > beforeBet && before-now == afterBet-beforeBet
+        } else { chipConfirmation = false }
+        guard candidateCount >= 2 || chipConfirmation else { return nil }
         if action == .check && checked { return nil }
         if latched == action {
             let moneyChanged = (seat.stackCents != nil && latchedStack != nil && seat.stackCents != latchedStack) ||
@@ -81,6 +98,6 @@ struct ActionScanner {
         latched = action; latchedStack = seat.stackCents; latchedBet = seat.betCents; cleared = false
         if action == .fold { folded = true }
         if action == .check { checked = true }
-        return TrackedAction(time:candidateTime ?? time,round:nextRound,street:nextStreet,kind:action,addedCents:added,wagerToCents:seat.betCents)
+        return TrackedAction(time:candidateTime ?? time,round:nextRound,street:nextStreet,kind:action,addedCents:added,wagerToCents:seat.betCents,evidence:.label)
     }
 }
