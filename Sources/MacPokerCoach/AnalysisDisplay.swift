@@ -4,6 +4,7 @@ import TableRecognition
 
 /// Presentation-only history. These values never feed the live calculation.
 struct AnalysisDisplay {
+    var lastAdvice: ActionAdvice?
     var hand: LiveHand?
     var table: TableObservation?
     var result: EquityResult?

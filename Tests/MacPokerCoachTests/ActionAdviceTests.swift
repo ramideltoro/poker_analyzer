@@ -113,7 +113,7 @@ final class PremiumAdviceTests: XCTestCase {
         XCTAssertLessThan(estimate.upper,0)
         XCTAssertEqual(ActionAdvice.recommend(hole:hole,board:board,result:result,estimate:estimate,call:1,table:table()).kind,.fold)
         XCTAssertEqual(try advice(hole,board:cards(["2c","4d","7h"]),q:0.8,table:table()).kind,.call)
-        XCTAssertEqual(try advice(cards(["7s","2d"]),q:0.15,table:table()).kind,.fold)
+        XCTAssertNil(try advice(cards(["7s","2d"]),q:0.15,table:table()).kind,"No strategic preflop fold from a random check-down price")
     }
     func testFreeCheckKnownOpponentCardsAndConflictingControls() throws {
         let hole = cards(["Ks","Kd"])

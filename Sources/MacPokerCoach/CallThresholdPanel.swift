@@ -5,6 +5,7 @@ struct CallThresholdPanel: View {
     @ObservedObject var analysis: HandAnalysisModel
     var height: CGFloat
     @State private var scenarios = false
+    @State private var preflopSetup = false
     private func money(_ v: Double?) -> String { v.map { String(format:"$%.2f",$0) } ?? "—" }
     private var price: DecisionPrice? {
         guard let q = analysis.display.decisionEquity, let p = analysis.display.eligiblePotDollars, let c = analysis.display.decisionCallDollars else { return nil }
@@ -26,13 +27,15 @@ struct CallThresholdPanel: View {
         return String(format:"%.1f ×",Double(effective)/Double(context.potCents))
     }
     var body: some View {
-        let advice = analysis.actionAdvice
+        let advice = analysis.presentedAdvice
         let large = height >= 210
         let tint = advice.kind == .fold ? DashboardStyle.loss : advice.kind == .raise ? DashboardStyle.cyan : DashboardStyle.accent
         VStack(alignment:.leading,spacing:large ? 6 : 3) {
             HStack {
-                Text(advice.kind == nil ? "DECISION STATUS" : "SUGGESTED ACTION").sectionLabel()
+                Text(analysis.showsLastAdvice ? "LAST SUGGESTION" : advice.kind == nil ? "DECISION STATUS" : "SUGGESTED ACTION").sectionLabel()
                 Spacer()
+                Button("Position") { preflopSetup = true }.font(.system(size:9)).buttonStyle(.plain).foregroundStyle(DashboardStyle.cyan)
+                    .popover(isPresented:$preflopSetup) { PreflopSetup(analysis:analysis).padding(20).frame(width:390) }
                 Button { scenarios = true } label: { Image(systemName:"info.circle") }.buttonStyle(.plain)
                     .help("Decision assumptions and raise scenarios")
                     .popover(isPresented:$scenarios,arrowEdge:.trailing) { DecisionScenarios(analysis:analysis).padding(20).frame(width:470) }
@@ -40,7 +43,7 @@ struct CallThresholdPanel: View {
             HStack(alignment:.firstTextBaseline) {
                 Text(advice.kind?.label.uppercased() ?? advice.state.label).font(.system(size:advice.kind == nil ? (large ? 20 : 16) : (large ? 32 : 23),weight:.bold,design:.rounded)).foregroundStyle(advice.kind == nil ? .secondary : tint)
                     .lineLimit(1).minimumScaleFactor(0.7)
-                    .accessibilityLabel(advice.kind.map { "Suggested action: \($0.label)" } ?? "\(advice.state.label). No suggested action available")
+                    .accessibilityLabel(advice.kind.map { "\(analysis.showsLastAdvice ? "Last suggestion" : "Suggested action"): \($0.label)" } ?? "\(advice.state.label). No suggested action available")
                 Spacer(minLength:4)
                 Text(advice.marginal ? "LOW CONFIDENCE" : advice.kind != nil ? advice.basis : "STATUS")
                     .font(.system(size:8,weight:.semibold)).foregroundStyle(.secondary)

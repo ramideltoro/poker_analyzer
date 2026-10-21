@@ -1,0 +1,17 @@
+Numerical category-count facts derived from oscar6echo/Poker2
+https://github.com/oscar6echo/Poker2
+Pinned commit: f4c46143a6f4504f2b2fe82da88dadec84f1c46a
+Source: Tables/df_preflop_hand_distrib.csv
+
+The app contains only a new compact numerical aggregate: final best-five-category
+counts over all C(50,5) = 2,118,760 boards for each of 169 starting classes.
+The raw CSV SHA-256 is recorded in Resources/preflop-reference.json.
+No upstream implementation, raw table or visualization is redistributed.
+No license file was present in the pinned repository. This notice attributes the
+numerical source and does not claim a license to redistribute its source code.
+The importer and runtime code are independently written for this local app.
+
+The separate heads-up matchup CSV was rejected after independent checks found
+AA/KK discrepancies beyond five-million-deal sampling bounds. It is not bundled
+or used for equity. The upstream Monte Carlo aggregate was also not integrated.
+These category counts do not estimate win equity or actual opponents' ranges.

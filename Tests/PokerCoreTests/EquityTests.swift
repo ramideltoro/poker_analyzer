@@ -24,8 +24,8 @@ final class EquityTests: XCTestCase {
         let exact = try EquityEngine.calculate(hole:hole,board:board,opponents:1)
         let simulated = try EquityEngine.calculate(hole:hole,board:board,opponents:1,seed:27,exactRiver:false)
         XCTAssertLessThanOrEqual(abs(exact.equity-simulated.equity),simulated.samplingBound)
-        XCTAssertEqual(simulated.samples,100_000)
-        XCTAssertEqual(simulated.samplingBound,sqrt(log(40)/(2*100_000)),accuracy:1e-12)
+        XCTAssertEqual(simulated.samples,1_000_000)
+        XCTAssertEqual(simulated.samplingBound,sqrt(log(40)/(2*1_000_000)),accuracy:1e-12)
         let split = try EquityEngine.calculate(hole:cards("2c 3d"),board:cards("As Ks Qs Js Ts"),opponents:2,samples:512,seed:7)
         XCTAssertFalse(split.exact); XCTAssertEqual(split.equity,1.0/3,accuracy:1e-12)
     }

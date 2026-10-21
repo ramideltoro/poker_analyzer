@@ -3,12 +3,13 @@ import PokerCore
 import TableRecognition
 
 enum AdviceAvailability: String {
-    case ready, cards, savedHand, controls, calculating, amounts, unsupported, calculationFailed
+    case preflop, ready, cards, savedHand, controls, calculating, amounts, unsupported, calculationFailed
     var label: String {
         switch self {
+        case .preflop: return "Confirm preflop context"
         case .ready: return "Live suggestion"
         case .cards: return "Waiting for cards"
-        case .savedHand: return "Saved hand only"
+        case .savedHand: return "No earlier suggestion"
         case .controls: return "Reading action buttons"
         case .calculating: return "Calculating hand odds"
         case .amounts: return "Reading pot / call"
@@ -97,10 +98,9 @@ struct ActionAdvice: Equatable {
             return ActionAdvice(title:"CALL",reason:"\(name) is a premium preflop pair: continue under the cash-game starting-hand rule. No supported value raise is available. Actual re-raising ranges can change this choice.",kind:.call,basis:"PREFLOP RULE")
         }
         if let table, let advice = riverRaise(hole:hole,board:board,result:result,table:table) { return advice }
-        var advice = priced(equity:result.equity,estimate:estimate,call:call)
+        let advice = priced(equity:result.equity,estimate:estimate,call:call)
         if board.isEmpty, call > 0 {
-            advice.basis = "PREFLOP PRICE"
-            advice.reason = advice.reason.replacingOccurrences(of:"Assumes random hands, no later bets or rake.",with:"Random hands; position, betting ranges, later bets and rake are not modeled.")
+            return ActionAdvice(title:"WAIT",reason:"Preflop needs position and prior action. Set Position / preflop context. Random-hand call EV cannot decide whether to open-raise, defend or fold.",kind:nil,basis:"CONTEXT NEEDED",availability:.preflop)
         }
         return advice
     }
@@ -140,6 +140,7 @@ struct ActionAdvice: Equatable {
 }
 
 extension HandAnalysisModel {
+    private static func adviceAmount(_ text: String) -> Double? { TableMoney.cents(text,requireCurrency:false).map { Double($0)/100 } }
     var actionAdvice: ActionAdvice {
         guard let hand = currentHand else { return ActionAdvice(title:"WAIT",reason:"No current cards are confirmed. Scanning continues; new readable cards restart decisions. If cards are visible, use Stop → Start to reselect the Safari window.",kind:nil,availability:.cards) }
         if hand.isReview { return ActionAdvice(title:"REVIEW",reason:"Only saved cards are available after your cards disappeared. What-if calculations continue; there is no live action for these saved cards.",kind:nil,basis:"SAVED CARDS",availability:.savedHand) }
@@ -148,10 +149,16 @@ extension HandAnalysisModel {
         if automatic, table?.controls != nil, !actionControlsConfirmed {
             return ActionAdvice(title:"WAIT",reason:"Confirming your current Call / Check buttons across two readings. New cards, disappearing buttons or a changed call price immediately clear the old action.",kind:nil,availability:.controls)
         }
+        if automatic, hand.board.isEmpty, actionControlsConfirmed, let table {
+            if tableConfirmed, let opening = preflopContext.suggestion(hole:hand.hole.map(\.card),table:table) { return opening }
+            if preflopSituation == .firstIn || position != .unknown {
+                return ActionAdvice(title:"WAIT",reason:"Opening rule needs a confirmed position, everyone folded, a readable big blind, standard unopened pot and ≥50 BB effective stacks. Limped, raised and short-stack pots need a separate strategy; call EV alone cannot decide them.",kind:nil,availability:.preflop)
+            }
+        }
         if calculating { return ActionAdvice(title:"WAIT",reason:"Calculating equity for the current cards and active players. A priced decision appears automatically when the calculation finishes.",kind:nil,availability:.calculating) }
         if let error { return ActionAdvice(title:"WAIT",reason:error,kind:nil,availability:.calculationFailed) }
         guard estimateIsCurrent, let estimate = callEstimate, let result,
-              let call = display.decisionCallDollars else {
+              let call = (automatic ? automaticContext.map { Double($0.callCents)/100 } : Self.adviceAmount(callText)) else {
             let missingControls = automatic && table?.callCents == nil
             return ActionAdvice(title:"WAIT",reason:missingControls ? "No readable Call / Check buttons. They may be hidden between turns. Scanning continues; the suggestion returns when they reappear." : amountHelp,kind:nil,availability:missingControls ? .controls : .amounts)
         }

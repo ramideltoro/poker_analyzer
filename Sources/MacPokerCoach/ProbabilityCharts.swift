@@ -79,7 +79,7 @@ struct FinalHandPanel: View {
                         .accessibilityElement(children:.combine)
                 }
             }
-            Text("Best five cards, including the board. A category does not guarantee a win.")
+            Text("\(result?.categoriesExact == true ? "Exact categories" : "Simulated categories") · best five including board. Not win odds.")
                 .font(.system(size:height >= 270 ? 11 : 9)).foregroundStyle(.secondary).lineLimit(height >= 270 ? 2 : 1).frame(height:height >= 270 ? 24 : 12,alignment:.topLeading)
         }.padding(10).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height).dashboardPanel()
     }

@@ -33,3 +33,24 @@ The last decision EV, eligible pot and call threshold stay saved and labeled. Fo
 Cards disappearing can also mean an occlusion or transition. There is no reliable live hand identifier in v1. In particular, a preflop fold followed by a flop cannot prove same-hand continuity from cards alone. Review is therefore labeled hypothetical throughout. Clear/replacement detection protects against obvious hand boundaries but cannot establish semantic identity.
 
 Exact improvement information enumerates all 1,081 flop runouts or 46 turn rivers, using the known hole cards and board only. “Higher category” means a better hand category, not merely a higher kicker, and may improve the board for everyone. These are not clean winning outs. On the river there are no future runouts. Board texture reports paired ranks, suit concentration and distinct ranks in a five-rank window. Starting-hand notation uses `s` for suited and `o` for offsuit.
+
+## v0.15: validated category reference and higher-precision equity
+
+The app adds numerical category data from [oscar6echo/Poker2](https://github.com/oscar6echo/Poker2), pinned to `f4c46143a6f4504f2b2fe82da88dadec84f1c46a`. Its exhaustive rank-distribution CSV contains all 7,462 ranks for every starting class. An independently written Ruby importer normalizes rank notation (including reversed offsuit notation), aggregates mutually exclusive best-five categories and checks all 169 columns sum to C(50,5) = **2,118,760** boards. The all-seven-card distribution also matches the known category totals over all 133,784,560 combinations. Suit permutations have the same category probabilities. This numerical reference improves the preflop final-category chart; it is not a win-equity table.
+
+Only a compact 169-row numerical aggregate ships, with its source SHA-256. The original CSV stays outside the repository. Upstream code is neither executed nor bundled. Attribution/scope are in `ThirdParty/Poker2/NOTICE.txt`; the pinned repository has no license file. These are mathematical counts, not historical human hands or extra independent Monte Carlo samples.
+
+The separate 14,365-row heads-up matchup table was inspected and rejected. Blocker-weighted comparisons with five million independent local deals gave AA 85.1953% versus the table-derived 85.0737%, and KK 82.3894% versus 82.2814%. Both differences exceeded the local individual 95% Hoeffding radius of ±0.06074 percentage points. These checks do not prove the precise upstream cause, but do not support presenting the table as a more accurate exact equity reference. Its runtime code, generated matchup values and two-billion-deal headline were removed before release. The separate nominal 300-million-deal Monte Carlo CSV is also excluded: its tie field is pot-share contribution rather than tie-event frequency, and the current generator's repeated seed / reduced random domain make the filename insufficient evidence of independent coverage. These raw diagnostic inputs remain outside the source.
+
+Live heads-up flop/turn/river equity now enumerates **1,070,190 / 45,540 / 990** legal deals locally. Other equity calculations use **1,000,000 local uniform legal deals**, reducing the individual conservative 95% sampling radius from about ±0.43 to ±0.136 percentage points. Exact preflop category charts use the validated imported counts, independent of the number of random opponents. Enumeration is cancellable. Existing duplicate-card, split-pot and unsupported-pot safeguards remain. PHH historical observations remain separate.
+
+All 169 category distributions are compared with independent seeded local simulations using a family-wise 95% Hoeffding bound over 1,521 category comparisons. All 2,118,760 final boards for 98s are additionally enumerated locally, matching every imported category count exactly. Exact heads-up flop/turn calculations agree with independent simulation within its bound. Other tests check sample counts, all suits of 98s, ties, cancellation and the exclusion of the rejected matchup reference. Sampling bounds quantify Monte Carlo noise under the stated random-opponent model, not uncertainty about actual opponents.
+
+Reproduce the category import with:
+
+```sh
+bash scripts/fetch-preflop-reference.sh /absolute/path/outside/repository/poker2-reference
+bash scripts/build-app.sh
+```
+
+Position does not change raw showdown equity conditional on the same cards and opponent distribution. It changes strategies, equity realization and the distribution of hands that continue. The engine still assumes random opponents. The v0.15 position controls provide explicit per-hand context for limited first-in cash-game rules; they do not implement solver EV, calling/re-raising ranges, blind defense or postflop positional strategy.

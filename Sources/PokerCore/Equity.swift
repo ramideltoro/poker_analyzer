@@ -10,6 +10,9 @@ public struct ShowdownProbabilities: Equatable, Sendable {
 }
 
 public struct EquityResult: Equatable, Sendable {
+    public enum Method: String, Sendable { case monteCarlo, enumeration }
+    public let method: Method
+    public let categoriesExact: Bool
     public let equity: Double
     public let samplingBound: Double
     public let samples: Int
@@ -19,7 +22,8 @@ public struct EquityResult: Equatable, Sendable {
     public let categoryProbabilities: [Double]
     public var lower: Double { max(0,equity-samplingBound) }
     public var upper: Double { min(1,equity+samplingBound) }
-    public init(equity: Double,samplingBound: Double,samples: Int,exact: Bool,outcomes: ShowdownProbabilities? = nil,categoryProbabilities: [Double] = []) {
+    public init(equity: Double,samplingBound: Double,samples: Int,exact: Bool,outcomes: ShowdownProbabilities? = nil,categoryProbabilities: [Double] = [],method: Method? = nil,categoriesExact: Bool? = nil) {
+        self.method = method ?? (exact ? .enumeration : .monteCarlo); self.categoriesExact = categoriesExact ?? exact
         self.equity = equity; self.samplingBound = samplingBound; self.samples = samples; self.exact = exact
         self.outcomes = outcomes; self.categoryProbabilities = categoryProbabilities
     }
@@ -58,27 +62,34 @@ public enum EquityEngine {
     private static let deck = Suit.allCases.flatMap { suit in (2...14).map { Card(rank:$0,suit:suit) } }
 
     /// All legal opponent hole-card combinations are equally likely. No betting-range inference.
-    public static func calculate(hole: [Card],board: [Card],opponents: Int,samples: Int = 100_000,
-                                 seed: UInt64 = UInt64.random(in:1...UInt64.max),exactRiver: Bool = true,
+    public static func calculate(hole: [Card],board: [Card],opponents: Int,samples: Int = 1_000_000,
+                                 seed: UInt64 = UInt64.random(in:1...UInt64.max),exactRiver: Bool = true,exactPostflop: Bool = true,useCategoryReference: Bool = true,
                                  cancelled: @Sendable () -> Bool = { false }) throws -> EquityResult {
         let known = hole+board
         guard hole.count == 2, [0,3,4,5].contains(board.count), Set(known).count == known.count else { throw EquityError.invalidCards }
         guard (1...8).contains(opponents) else { throw EquityError.invalidOpponents }
         guard samples > 0 else { throw EquityError.invalidSamples }
         var available = deck.filter { !known.contains($0) }
-        if board.count == 5 && opponents == 1 && exactRiver {
-            let hero = Evaluator.evaluate(hole+board)
-            var sum = 0.0, count = 0, wins = 0, ties = 0
-            for i in 0..<(available.count-1) { for j in (i+1)..<available.count {
-                if count%32 == 0 && cancelled() { throw EquityError.cancelled }
-                let other = Evaluator.evaluate([available[i],available[j]]+board)
-                sum += hero > other ? 1 : hero == other ? 0.5 : 0
-                if hero > other { wins += 1 }; if hero == other { ties += 1 }
-                count += 1
-            } }
-            var categories = [Double](repeating:0,count:9); categories[hero.category] = 1
-            return EquityResult(equity:sum/Double(count),samplingBound:0,samples:count,exact:true,
-                                outcomes:ShowdownProbabilities(win:Double(wins)/Double(count),tie:Double(ties)/Double(count),lose:Double(count-wins-ties)/Double(count)),categoryProbabilities:categories)
+        let reference = board.isEmpty && useCategoryReference ? HandDetails.startingClass(hole).flatMap { PreflopReference.shared?.classes[$0] } : nil
+        if opponents == 1 && ((board.count == 5 && exactRiver) || ([3,4].contains(board.count) && exactPostflop)) {
+            var wins=0, ties=0, count=0, categories=[Int](repeating:0,count:9)
+            func visit(_ drawn: [Int]) throws {
+                if cancelled() { throw EquityError.cancelled }
+                let runout=board+drawn.map { available[$0] }, hero=Evaluator.evaluate(hole+runout)
+                let remaining=available.indices.filter { !drawn.contains($0) }
+                for a in 0..<remaining.count-1 { for b in a+1..<remaining.count {
+                    if count%1024==0 && cancelled() { throw EquityError.cancelled }
+                    let other=Evaluator.evaluate([available[remaining[a]],available[remaining[b]]]+runout)
+                    if hero>other { wins+=1 }; if hero==other { ties+=1 }
+                    categories[hero.category]+=1; count+=1
+                } }
+            }
+            if board.count==5 { try visit([]) }
+            else if board.count==4 { for a in available.indices { try visit([a]) } }
+            else { for a in 0..<available.count-1 { for b in a+1..<available.count { try visit([a,b]) } } }
+            return EquityResult(equity:(Double(wins)+Double(ties)/2)/Double(count),samplingBound:0,samples:count,exact:true,
+                outcomes:ShowdownProbabilities(win:Double(wins)/Double(count),tie:Double(ties)/Double(count),lose:Double(count-wins-ties)/Double(count)),
+                categoryProbabilities:categories.map { Double($0)/Double(count) })
         }
         var rng = SplitMix(state:seed), sum = 0.0
         var wins = 0, ties = 0, categories = [Int](repeating:0,count:9)
@@ -106,7 +117,7 @@ public enum EquityEngine {
         let bound = sqrt(log(40)/(2*Double(samples)))
         return EquityResult(equity:sum/Double(samples),samplingBound:bound,samples:samples,exact:false,
                             outcomes:ShowdownProbabilities(win:Double(wins)/Double(samples),tie:Double(ties)/Double(samples),lose:Double(samples-wins-ties)/Double(samples)),
-                            categoryProbabilities:categories.map { Double($0)/Double(samples) })
+                            categoryProbabilities:reference.map { entry in entry.categories.map { Double($0)/2_118_760 } } ?? categories.map { Double($0)/Double(samples) },categoriesExact:reference != nil)
     }
 
     public static func showdownShare(hole: [Card],board: [Card],villains: [[Card]]) throws -> Double {

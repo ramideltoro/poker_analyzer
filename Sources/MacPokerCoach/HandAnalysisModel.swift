@@ -5,6 +5,13 @@ import TableRecognition
 
 @MainActor final class HandAnalysisModel: ObservableObject {
     typealias Calculate = @Sendable ([Card],[Card],Int,@escaping @Sendable () -> Bool) throws -> EquityResult
+    @Published var position: PokerPosition = .unknown { didSet { refreshDisplay() } }
+    @Published var preflopSituation: PreflopSituation = .unknown { didSet { refreshDisplay() } }
+    @Published var bigBlindText = "" { didSet { refreshDisplay() } }
+    private var contextHole: [Card]?
+    var preflopContext: PreflopContext { PreflopContext(position:position,situation:preflopSituation,bigBlindCents:TableMoney.cents(bigBlindText,requireCurrency:false)) }
+    var showsLastAdvice: Bool { (isReview || current == nil) && display.lastAdvice != nil }
+    var presentedAdvice: ActionAdvice { showsLastAdvice ? display.lastAdvice! : actionAdvice }
     @Published private(set) var result: EquityResult?
     @Published private(set) var opponents = 1
     @Published private(set) var calculating = false
@@ -67,7 +74,11 @@ import TableRecognition
         if let next, let previous = display.hand,
            !((hand?.isReview == true) && next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code }),
            next != CardsKey(hole:previous.hole.map(\.card).sorted { $0.code < $1.code },board:previous.board.map(\.card).sorted { $0.code < $1.code }) {
-            display = AnalysisDisplay()
+            let retained = next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code } && Set(previous.board.map(\.card)).isSubset(of:Set(next.board)) ? display.lastAdvice : nil
+            display = AnalysisDisplay(); display.lastAdvice = retained
+        }
+        if let next, hand?.isReview != true, next.hole != contextHole {
+            contextHole = next.hole; position = .unknown; preflopSituation = .unknown
         }
         if next != cardsKey {
             cardsKey = next; potText = ""; callText = ""; tableStabilizer.reset()
@@ -86,7 +97,7 @@ import TableRecognition
         refreshAnalysis()
     }
     /// Stop, stale capture or permission loss must remove even presentation-only history.
-    func reset() { update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil }
+    func reset() { update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil; contextHole = nil; position = .unknown; preflopSituation = .unknown; bigBlindText = "" }
     private func validOpponentCount(_ table: TableObservation) -> Bool {
         table.seats.filter(\.isHero).count == 1 && (2...9).contains(table.seats.count) &&
         table.seats.allSatisfy { $0.activity != .unknown } && (1...8).contains(table.activeOpponents.count)
@@ -194,7 +205,7 @@ import TableRecognition
     var simulationSummary: String {
         guard let value = display.result else { return "Waiting for a confirmed hand and opponent count." }
         let model = "vs \(display.opponents) random \(display.opponents == 1 ? "opponent" : "opponents")"
-        return value.exact ? "Exact · \(value.samples.formatted()) deals · \(model)" : "\(value.samples.formatted()) deals · \(model) · 95% bound per metric ±\(String(format:"%.2f",value.samplingBound*100)) pp"
+        return value.exact ? "Exact · \(value.samples.formatted()) deals · \(model)" : "\(value.samples.formatted()) deals · \(model) · 95% equity/outcome bound ±\(String(format:"%.2f",value.samplingBound*100)) pp\(value.categoriesExact ? " · exact categories" : "")"
     }
     private func refreshDisplay() {
         guard !updating else { return }
@@ -217,6 +228,10 @@ import TableRecognition
             next.decisionEquity = result?.equity
             next.decisionCallDollars = automatic ? automaticContext.map { Double($0.callCents)/100 } : Self.amount(callText)
             next.eligiblePotDollars = automatic ? automaticContext.map { Double($0.potCents)/100 } : Self.amount(potText)
+        }
+        if current?.isReview == false {
+            let live = actionAdvice
+            if live.kind != nil { next.lastAdvice = live }
         }
         display = next
     }
