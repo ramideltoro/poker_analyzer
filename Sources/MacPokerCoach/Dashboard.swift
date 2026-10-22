@@ -28,7 +28,7 @@ struct RootView: View {
         }.background(LinearGradient(colors:[Color(red:0.065,green:0.085,blue:0.13),DashboardStyle.background],startPoint:.topLeading,endPoint:.bottomTrailing))
             .transaction { $0.animation = nil }
             .sheet(isPresented:$showingHistory) { TrackingSheet(tracking:tracking,endTable:{ model.stop(); tracking.endTable() },initialTab:historyTab) }
-            .onReceive(NotificationCenter.default.publisher(for:NSApplication.willTerminateNotification)) { _ in tracking.endTable(); tracking.store.flush() }
+            .onReceive(NotificationCenter.default.publisher(for:NSApplication.willTerminateNotification)) { _ in tracking.endTable(); tracking.store.flush(); model.handTrace.end("Application quit"); model.handTrace.flush() }
     }
     private var header: some View {
         HStack(spacing:12) {
@@ -51,7 +51,11 @@ struct RootView: View {
             } label: { Image(systemName:"arrow.up.left.and.arrow.down.right") }.buttonStyle(.borderless).help("Fill the screen")
             AnalysisHelpButton()
             Button { historyTab = 0; showingHistory = true } label: { Image(systemName:"chart.bar.xaxis") }.buttonStyle(.borderless).help("Opponent reveals and your saved play history").accessibilityLabel("Play history")
-            Button { model.showLogs() } label: { Image(systemName:"doc.text.magnifyingglass") }.buttonStyle(.borderless).help("Show diagnostic logs").accessibilityLabel("Show logs")
+            Menu {
+                Button("Hand decision traces (cards & chips)") { model.showHandTraces() }
+                Button("General diagnostics") { model.showLogs() }
+            } label: { Image(systemName:"doc.text.magnifyingglass") }.menuStyle(.borderlessButton).fixedSize()
+                .help("Open local hand traces or general diagnostics").accessibilityLabel("Show logs")
             Button(capture.running || capture.choosing ? "Stop" : "Start",systemImage:capture.running || capture.choosing ? "stop.fill" : "play.fill") {
                 if capture.running || capture.choosing { model.stop() } else { model.start() }
             }.buttonStyle(.borderedProminent).tint(DashboardStyle.accent).foregroundStyle(.black).controlSize(.small).frame(width:82)
@@ -89,7 +93,7 @@ struct RootView: View {
             Spacer(minLength:12)
             Text("\(model.scanned) scans · \(model.faces) faces · \(model.milliseconds) ms · v\(model.version)")
                 .font(.system(size:9,design:.monospaced)).monospacedDigit().foregroundStyle(.tertiary).fixedSize()
-                .help("\(model.receivedFrames) received frames · \(model.candidates) candidates. Processing is local. Images, card values and amounts are not logged.")
+                .help("\(model.receivedFrames) received frames · \(model.candidates) candidates. Processing is local. No images are saved. General diagnostics omit card values and prices; hand decision traces retain them locally.")
         }.frame(height:16)
     }
 }

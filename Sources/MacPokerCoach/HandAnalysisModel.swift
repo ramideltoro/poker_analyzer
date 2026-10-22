@@ -5,13 +5,32 @@ import TableRecognition
 
 @MainActor final class HandAnalysisModel: ObservableObject {
     typealias Calculate = @Sendable ([Card],[Card],Int,@escaping @Sendable () -> Bool) throws -> EquityResult
-    @Published var position: PokerPosition = .unknown { didSet { refreshDisplay() } }
+    @Published var position: PokerPosition = .unknown { didSet { if !updating { refreshForecast() }; refreshDisplay() } }
     @Published var preflopSituation: PreflopSituation = .unknown { didSet { refreshDisplay() } }
     @Published var bigBlindText = "" { didSet { refreshDisplay() } }
     private var contextHole: [Card]?
     var preflopContext: PreflopContext { PreflopContext(position:position,situation:preflopSituation,bigBlindCents:TableMoney.cents(bigBlindText,requireCurrency:false)) }
-    var showsLastAdvice: Bool { (isReview || current == nil) && display.lastAdvice != nil }
-    var presentedAdvice: ActionAdvice { showsLastAdvice ? display.lastAdvice! : actionAdvice }
+    var showsLastAdvice: Bool { (isReview || current == nil) && (display.lastAdvice ?? display.lastForecastAdvice) != nil }
+    var showsLastForecast: Bool { showsLastAdvice && display.lastAdvice == nil }
+    var isPlanning: Bool { automatic && current != nil && !isReview && !actionControlsConfirmed }
+    var presentedAdvice: ActionAdvice {
+        if showsLastAdvice { return (display.lastAdvice ?? display.lastForecastAdvice)! }
+        if isPlanning {
+            guard forecastConfirmed, let forecast else { return ActionAdvice(title:"WAIT",reason:"Preparing your turn from current cards and player activity. Observed actions update the forecast; assumptions are not recorded as actual folds.",kind:nil,availability:.forecast) }
+            return forecast.advice(hole:current!.hole.map(\.card),board:current!.board.map(\.card),context:preflopContext)
+        }
+        return actionAdvice
+    }
+    var onDecisionUpdate: (() -> Void)?
+    @Published private(set) var forecast: TurnForecast?
+    @Published private(set) var forecastConfirmed=false
+    @Published private(set) var equityTableConfirmed=false
+    private var previousEquityTable: TableObservation?
+    private var previousForecast: TurnForecast?
+    private var forecastWorker: Task<EquityResult,Error>?
+    private var forecastKey: Key?
+    private var forecastGeneration=UUID()
+    private var forecastRetryNotBefore=Date.distantPast
     @Published private(set) var result: EquityResult?
     @Published private(set) var opponents = 1
     @Published private(set) var calculating = false
@@ -54,7 +73,7 @@ import TableRecognition
         automatic = enabled; potText = ""; callText = ""
         display.estimate = nil; display.context = nil; display.eligiblePotDollars = nil; display.estimateTime = nil
         display.decisionEquity = nil; display.decisionCallDollars = nil
-        invalidate(); refreshAnalysis()
+        invalidate(); refreshAnalysis(); refreshForecast()
     }
     func setOpponents(_ count: Int) {
         guard !automatic, (1...8).contains(count), count != opponents else { return }
@@ -75,26 +94,29 @@ import TableRecognition
            !((hand?.isReview == true) && next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code }),
            next != CardsKey(hole:previous.hole.map(\.card).sorted { $0.code < $1.code },board:previous.board.map(\.card).sorted { $0.code < $1.code }) {
             let retained = next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code } && Set(previous.board.map(\.card)).isSubset(of:Set(next.board)) ? display.lastAdvice : nil
-            display = AnalysisDisplay(); display.lastAdvice = retained
+            let retainedForecast = retained != nil || (next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code } && Set(previous.board.map(\.card)).isSubset(of:Set(next.board))) ? display.lastForecastAdvice : nil
+            display = AnalysisDisplay(); display.lastAdvice = retained; display.lastForecastAdvice = retainedForecast
         }
         if let next, hand?.isReview != true, next.hole != contextHole {
             contextHole = next.hole; position = .unknown; preflopSituation = .unknown
         }
         if next != cardsKey {
             cardsKey = next; potText = ""; callText = ""; tableStabilizer.reset()
-            previousActionTable = nil
+            previousActionTable = nil; previousForecast=nil; forecastConfirmed=false
         }
+        equityTableConfirmed = hand != nil && reading.map { previousEquityTable?.agreesForEquity(with:$0)==true }==true
+        previousEquityTable = hand == nil ? nil : reading
         actionControlsConfirmed = hand != nil && reading.map { next in previousActionTable?.agreesForActions(with:next) == true } == true
         previousActionTable = hand == nil ? nil : reading
         if hand == nil { table = nil; tableConfirmed = false; tableStabilizer.reset() }
         else {
             table = reading
             tableConfirmed = tableStabilizer.accept(reading) != nil
-            if automatic, tableConfirmed, let reading, validOpponentCount(reading) {
+            if automatic, equityTableConfirmed, let reading, validOpponentCount(reading) {
                 opponents = reading.activeOpponents.count
             }
         }
-        refreshAnalysis()
+        refreshAnalysis(); refreshForecast(isObservation:true)
     }
     /// Stop, stale capture or permission loss must remove even presentation-only history.
     func reset() { update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil; contextHole = nil; position = .unknown; preflopSituation = .unknown; bigBlindText = "" }
@@ -109,7 +131,7 @@ import TableRecognition
     private func refreshAnalysis() {
         var next: Key?
         if let cardsKey {
-            if !automatic || (table.map { validOpponentCount($0) && $0.activeOpponents.count == opponents } == true && (tableConfirmed || key != nil)) {
+            if !automatic || (table.map { validOpponentCount($0) && $0.activeOpponents.count == opponents } == true && (equityTableConfirmed || key != nil)) {
                 next = Key(hole:cardsKey.hole,board:cardsKey.board,opponents:opponents)
             }
         }
@@ -138,11 +160,51 @@ import TableRecognition
                 self.retryNotBefore = Date().addingTimeInterval(min(2,Double(self.failureCount)*0.25))
                 self.error = "The calculation was interrupted. Retrying automatically while the current hand remains readable."
             }
-            self.refreshDisplay()
+            self.refreshForecast(); self.refreshDisplay()
+        }
+    }
+    private func stopForecast() {
+        forecastGeneration=UUID(); forecastWorker?.cancel(); forecastWorker=nil; forecastKey=nil
+    }
+    private func refreshForecast(isObservation: Bool = false) {
+        guard isPlanning, let hand=current, let table,
+              let next=TurnForecast.make(table,position:position,board:hand.board.map(\.card),bigBlindCents:preflopContext.bigBlindCents) else {
+            stopForecast(); forecast=nil; previousForecast=nil; forecastConfirmed=false; return
+        }
+        let stable=previousForecast.map { $0.assumedFoldIDs==next.assumedFoldIDs && $0.orderKnown==next.orderKnown && $0.table.agreesForAnalysis(with:next.table) }==true
+        if isObservation { previousForecast=next; forecastConfirmed=stable && equityTableConfirmed }
+        else { forecastConfirmed = forecastConfirmed && stable }
+        var value=next
+        guard forecastConfirmed, (1...8).contains(value.opponents) else { stopForecast(); forecast=value; return }
+        let nextKey=Key(hole:hand.hole.map(\.card).sorted { $0.code<$1.code },board:hand.board.map(\.card).sorted { $0.code<$1.code },opponents:value.opponents)
+        if let cached=cachedResults[nextKey] { stopForecast(); value.result=cached; forecast=value; return }
+        if value.opponents==opponents {
+            stopForecast(); value.result=result; value.calculating=calculating; forecast=value; return
+        }
+        if forecastKey==nextKey { value.result=forecast?.result; value.calculating=forecastWorker != nil; forecast=value; return }
+        stopForecast(); forecast=value
+        guard Date()>=forecastRetryNotBefore else { return }
+        forecastKey=nextKey; let token=forecastGeneration, calculate=calculate
+        value.calculating=true; forecast=value
+        let task=Task.detached(priority:.utility) { try calculate(nextKey.hole,nextKey.board,nextKey.opponents,{ Task.isCancelled }) }
+        forecastWorker=task
+        Task { [weak self] in
+            let outcome=await task.result
+            guard let self, self.forecastGeneration==token, var latest=self.forecast else { return }
+            self.forecastWorker=nil; latest.calculating=false
+            switch outcome {
+            case .success(let result):
+                latest.result=result; self.cachedResults[nextKey]=result
+                self.cacheOrder.removeAll { $0==nextKey }; self.cacheOrder.append(nextKey)
+                if self.cacheOrder.count>16 { self.cachedResults.removeValue(forKey:self.cacheOrder.removeFirst()) }
+            case .failure:
+                self.forecastKey=nil; self.forecastRetryNotBefore=Date().addingTimeInterval(0.5)
+            }
+            self.forecast=latest; self.refreshDisplay()
         }
     }
     var automaticContext: StackCallContext? {
-        guard current?.isReview != true, automatic, tableConfirmed, let table, table.incompleteReason == nil,
+        guard current?.isReview != true, automatic, actionControlsConfirmed, tableConfirmed, let table, table.incompleteReason == nil,
               let pot = table.potCents, let quoted = table.callCents, let stack = table.hero?.stackCents else { return nil }
         var uncapped = quoted
         if quoted >= stack {
@@ -178,6 +240,7 @@ import TableRecognition
         if isReview { return "Saved hole cards: probabilities are what-if results against the visible remaining players. Call EV is frozen at the last decision; you have no claim to the pot after folding." }
         guard current != nil else { return "Waiting for confirmed cards." }
         if automatic {
+            if isPlanning { return forecast?.estimate != nil ? "Conditional EV uses the stated fold assumption; live action awaits your turn." : "Equity runs before your turn; conditional dollar EV needs readable wagers, pot and stacks." }
             guard let table else { return "Reading the table · last confirmed values stay muted while updating." }
             guard tableConfirmed else { return "Confirming table amounts and player activity across consecutive frames…" }
             if let issue = table.incompleteReason { return issue }
@@ -198,7 +261,7 @@ import TableRecognition
         if callEstimate != nil { return "Live estimate" }
         if !automatic { return "Waiting for manual pot / call inputs" }
         if automatic, table == nil { return "Reading table · keeping previous values muted" }
-        if automatic, table?.callCents == nil { return "Waiting for Call / Check controls" }
+        if isPlanning { return "Planning before your turn · \(forecast?.assumption ?? "confirming player activity")" }
         if automatic, table?.sidePots == true { return "Side pot · EV needs contribution history" }
         return "Updating table readings"
     }
@@ -230,10 +293,11 @@ import TableRecognition
             next.eligiblePotDollars = automatic ? automaticContext.map { Double($0.potCents)/100 } : Self.amount(potText)
         }
         if current?.isReview == false {
+            if isPlanning, forecastConfirmed { let plan=presentedAdvice; if plan.kind != nil { next.lastForecastAdvice=plan } }
             let live = actionAdvice
             if live.kind != nil { next.lastAdvice = live }
         }
-        display = next
+        display = next; onDecisionUpdate?()
     }
     private static func amount(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in:.whitespacesAndNewlines)
@@ -241,5 +305,5 @@ import TableRecognition
               let value = Double(trimmed), value.isFinite else { return nil }
         return value
     }
-    deinit { worker?.cancel() }
+    deinit { worker?.cancel(); forecastWorker?.cancel() }
 }

@@ -79,7 +79,7 @@ import TableRecognition
         TableObservation(potCents:pot,callCents:call,seats:[
             TableSeat(id:1,bounds:UnitRect(x:0.4,y:0.3,width:0.2,height:0.05),isHero:false,stackCents:1000,activity:.active),
             TableSeat(id:2,bounds:UnitRect(x:0.7,y:0.4,width:0.2,height:0.05),isHero:false,stackCents:800,activity:.folded),
-            TableSeat(id:3,bounds:UnitRect(x:0.4,y:0.8,width:0.2,height:0.05),isHero:true,stackCents:2000,activity:.active)])
+            TableSeat(id:3,bounds:UnitRect(x:0.4,y:0.8,width:0.2,height:0.05),isHero:true,stackCents:2000,activity:.active)],controls:TableControls(canFold:true,canCheck:call==0,canCall:call>0))
     }
     func model() -> HandAnalysisModel {
         HandAnalysisModel(calculate:{ _,_,count,_ in EquityResult(equity:1/Double(count+1),samplingBound:0.01,samples:12000,exact:false) })
@@ -182,7 +182,7 @@ extension AutomaticAnalysisTests {
         t.callCents = nil; m.update(hand(),table:t); m.update(hand(),table:t)
         XCTAssertNotNil(m.result); XCTAssertTrue(m.equityIsCurrent); XCTAssertNil(m.callEstimate)
         XCTAssertNotNil(m.display.estimate); XCTAssertFalse(m.estimateIsCurrent)
-        XCTAssertTrue(m.displayStatus.contains("Waiting for Call / Check"))
+        XCTAssertTrue(m.displayStatus.contains("Planning before your turn"))
     }
     func testChangedCardsNeverReuseOldHandPresentation() async throws {
         let m = model(); try await confirm(m,table())

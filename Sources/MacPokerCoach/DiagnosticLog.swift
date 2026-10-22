@@ -1,6 +1,7 @@
 import Foundation
 
-/// Local metadata-only JSONL logs. No pixels, card values, monetary amounts, OCR text, URLs, or window titles.
+/// Default diagnostics are metadata-only. The bounded JSONL writer is also reused
+/// by the separately stored, explicitly requested HandTraceLog. Never stores pixels.
 final class DiagnosticLog: @unchecked Sendable {
     static let shared = DiagnosticLog()
     static let disabled = DiagnosticLog(enabled:false)

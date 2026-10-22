@@ -16,6 +16,8 @@ import Combine
     let log: DiagnosticLog
     let analysis: HandAnalysisModel
     let tracking: PlayTracking
+    let handTrace: HandTraceLog
+    private var traceTable: TableObservation?
     private var analysisObserver: AnyCancellable?
     var version: String { Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development" }
     private var stabilizer = ReadingStabilizer()
@@ -28,10 +30,12 @@ import Combine
     private let detector = AutomaticCardDetector()
     private let tableDetector = TableStateDetector()
     private let queue = DispatchQueue(label:"handreader.detection",qos:.userInitiated)
-    init(log: DiagnosticLog = .shared,tracking: PlayTracking? = nil,analysis: HandAnalysisModel? = nil) {
+    init(log: DiagnosticLog = .shared,tracking: PlayTracking? = nil,analysis: HandAnalysisModel? = nil,handTrace: HandTraceLog? = nil) {
+        self.handTrace = handTrace ?? (log === DiagnosticLog.shared ? .shared : .disabled)
         self.log = log; capture = CaptureController(log:log)
         self.analysis = analysis ?? HandAnalysisModel()
         self.tracking = tracking ?? PlayTracking(persist:log === DiagnosticLog.shared)
+        self.analysis.onDecisionUpdate = { [weak self] in self?.recordHandTrace() }
         analysisObserver = self.analysis.$display.sink { [weak self] display in
             guard let self else { return }
             self.tracking.recordDecision(display,current:self.analysis.estimateIsCurrent)
@@ -54,8 +58,11 @@ import Combine
         if let url = log.fileURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         else { status = "Diagnostic logs could not be created in Application Support." }
     }
+    func showHandTraces() { handTrace.reveal() }
+    private func recordHandTrace() { handTrace.record(hand:hand,observed:traceTable,analysis:analysis,display:analysis.display,status:status) }
     func clear(_ reason: String,keepLayout: Bool = false) {
         generation = UUID(); busy = false; pending = nil; noCardsSince = nil; stabilizer.reset(keepLayout:keepLayout); hand = nil; faces = 0; lastScan = nil; status = reason
+        handTrace.end(reason); traceTable=nil
         reviewTracker.reset(); analysis.reset()
         tracking.endTable(reason)
         log.write("readings_cleared",["reason":reason,"layout_retained":"\(stabilizer.hasLayout)"])
@@ -86,7 +93,7 @@ import Combine
                 case .success(let scan): self.acceptScan(scan)
                 case .failure(let error):
                     self.stabilizer.reset(keepLayout:true); self.hand = nil; self.status = "Card detection failed on this frame; retrying…"
-                    self.analysis.update(nil)
+                    self.traceTable=nil; self.analysis.update(nil)
                     self.log.write("detector_error",["domain":(error as NSError).domain,"code":"\((error as NSError).code)","message":error.localizedDescription])
                 }
                 if let (next,timestamp,excluded) = self.pending {
@@ -110,6 +117,7 @@ import Combine
         hand = reviewTracker.accept(live:result.0,scan:scan)
         tracking.observe(table:scan.table,hand:hand,time:scan.timestamp)
         status = hand?.isReview == true ? "Saved hole cards · continuing visible-board what-if review" : result.1
+        traceTable=scan.table
         analysis.update(hand,table:scan.table)
         if scan.cards.isEmpty && !stabilizer.hasLayout { status = scan.diagnostics.summary }
         if scan.cards.isEmpty {
@@ -118,6 +126,7 @@ import Combine
                 status = "Scanning continuously · no readable cards. If cards are visible, Stop → Start and select the Safari poker window."
             }
         } else { noCardsSince = nil }
+        recordHandTrace()
         let advice = analysis.actionAdvice
         log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","saved_card_review":"\(hand?.isReview == true)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)",
                                   "table_observed":"\(scan.table != nil)","table_confirmed":"\(analysis.tableConfirmed)","seats_read":"\(scan.table?.seats.count ?? 0)",

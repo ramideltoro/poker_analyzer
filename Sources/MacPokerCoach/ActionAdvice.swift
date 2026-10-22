@@ -3,9 +3,10 @@ import PokerCore
 import TableRecognition
 
 enum AdviceAvailability: String {
-    case preflop, ready, cards, savedHand, controls, calculating, amounts, unsupported, calculationFailed
+    case forecast, preflop, ready, cards, savedHand, controls, calculating, amounts, unsupported, calculationFailed
     var label: String {
         switch self {
+        case .forecast: return "Planning your turn"
         case .preflop: return "Confirm preflop context"
         case .ready: return "Live suggestion"
         case .cards: return "Waiting for cards"
@@ -40,7 +41,7 @@ struct ActionAdvice: Equatable {
     }
     /// These rules do not need a completed simulation or readable opponent stacks.
     /// Controls still need independent consecutive-frame confirmation in the model.
-    static func immediate(hole: [Card],board: [Card],table: TableObservation,confirmedSize: Bool) -> ActionAdvice? {
+    static func immediate(hole: [Card],board: [Card],table: TableObservation,confirmedSize: Bool,situation: PreflopSituation = .unknown,position: PokerPosition = .unknown) -> ActionAdvice? {
         guard hole.count == 2, [0,3,4,5].contains(board.count), Set(hole+board).count == hole.count+board.count,
               table.hero?.activity == .active, table.hero?.stackCents != 0, let controls = table.controls, let call = table.callCents,
               call >= 0, call == 0 ? (controls.canCheck && !controls.canCall) : (controls.canCall && !controls.canCheck) else { return nil }
@@ -56,9 +57,11 @@ struct ActionAdvice: Equatable {
             }
             return ActionAdvice(title:"RAISE",reason:"\(name): raise for preflop value. Size is not confirmed; choose a legal size offered by the table. Typical cash-game rule; very tight re-raises need caution.",kind:.raise,basis:"PREFLOP RULE")
         }
+        if let value=PostflopPolicy.aggressive(hole:hole,board:board,table:table,confirmed:confirmedSize,situation:situation,position:position) { return value }
         if call == 0 {
+            if let f=PostflopPolicy.features(hole:hole,board:board), f.valueHand, f.danger==nil { return nil }
             if let own = table.hero?.betCents, table.activeOpponents.contains(where:{ ($0.betCents ?? 0) > own }) { return nil }
-            return ActionAdvice(title:"CHECK",reason:"Checking costs $0 and keeps your hand in the pot. Probabilities and other stacks can keep updating; this does not establish whether betting would earn more.",kind:.check)
+            return ActionAdvice(title:"CHECK",reason:PostflopPolicy.checkReason(hole:hole,board:board),kind:.check)
         }
         return nil
     }
@@ -91,6 +94,9 @@ struct ActionAdvice: Equatable {
                 }
             }
             if let advice = immediate(hole:hole,board:board,table:table,confirmedSize:true) { return advice }
+        }
+        if call == 0, let f=PostflopPolicy.features(hole:hole,board:board), f.valueHand, f.danger==nil {
+            return ActionAdvice(title:"WAIT",reason:"Strong made hand: confirming pot, stacks and a readable Bet button before choosing a value bet. A missing reading is not evidence that checking is best.",kind:nil,basis:"VALUE INPUTS",availability:.amounts)
         }
         if board.isEmpty, hole[0].rank == hole[1].rank, hole[0].rank >= 13 {
             let name = hole[0].rank == 13 ? "KK" : "AA"
@@ -145,7 +151,7 @@ extension HandAnalysisModel {
         guard let hand = currentHand else { return ActionAdvice(title:"WAIT",reason:"No current cards are confirmed. Scanning continues; new readable cards restart decisions. If cards are visible, use Stop → Start to reselect the Safari window.",kind:nil,availability:.cards) }
         if hand.isReview { return ActionAdvice(title:"REVIEW",reason:"Only saved cards are available after your cards disappeared. What-if calculations continue; there is no live action for these saved cards.",kind:nil,basis:"SAVED CARDS",availability:.savedHand) }
         if automatic, actionControlsConfirmed, let table,
-           let advice = ActionAdvice.immediate(hole:hand.hole.map(\.card),board:hand.board.map(\.card),table:table,confirmedSize:tableConfirmed) { return advice }
+           let advice = ActionAdvice.immediate(hole:hand.hole.map(\.card),board:hand.board.map(\.card),table:table,confirmedSize:tableConfirmed,situation:preflopSituation,position:position) { return advice }
         if automatic, table?.controls != nil, !actionControlsConfirmed {
             return ActionAdvice(title:"WAIT",reason:"Confirming your current Call / Check buttons across two readings. New cards, disappearing buttons or a changed call price immediately clear the old action.",kind:nil,availability:.controls)
         }
@@ -154,6 +160,10 @@ extension HandAnalysisModel {
             if preflopSituation == .firstIn || position != .unknown {
                 return ActionAdvice(title:"WAIT",reason:"Opening rule needs a confirmed position, everyone folded, a readable big blind, standard unopened pot and ≥50 BB effective stacks. Limped, raised and short-stack pots need a separate strategy; call EV alone cannot decide them.",kind:nil,availability:.preflop)
             }
+        }
+        if automatic, actionControlsConfirmed, let table, table.callCents==0,
+           let f=PostflopPolicy.features(hole:hand.hole.map(\.card),board:hand.board.map(\.card)), f.valueHand, f.danger==nil {
+            return ActionAdvice(title:"WAIT",reason:"Strong made hand: confirming pot, stacks and a readable Bet button before choosing a value bet. A missing reading is not evidence that checking is best.",kind:nil,basis:"VALUE INPUTS",availability:.amounts)
         }
         if calculating { return ActionAdvice(title:"WAIT",reason:"Calculating equity for the current cards and active players. A priced decision appears automatically when the calculation finishes.",kind:nil,availability:.calculating) }
         if let error { return ActionAdvice(title:"WAIT",reason:error,kind:nil,availability:.calculationFailed) }

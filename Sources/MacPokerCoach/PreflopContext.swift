@@ -43,13 +43,13 @@ struct PreflopSetup: View {
     @ObservedObject var analysis: HandAnalysisModel
     var body: some View {
         VStack(alignment:.leading,spacing:12) {
-            Text("Position & preflop context").font(.headline)
+            Text("Position & pot context").font(.headline)
             Text("Confirm for this hand. Position and prior action clear on a new detected hand; the big blind stays until capture resets.").font(.caption).foregroundStyle(.secondary)
-            Picker("Your position",selection:$analysis.position) { ForEach(PokerPosition.allCases,id:\.self) { Text($0.rawValue).tag($0) } }.disabled(analysis.currentHand?.board.isEmpty != true || analysis.isReview)
-            Picker("Before you",selection:$analysis.preflopSituation) { ForEach(PreflopSituation.allCases,id:\.self) { Text($0.rawValue).tag($0) } }.disabled(analysis.currentHand?.board.isEmpty != true || analysis.isReview)
+            Picker("Your position",selection:$analysis.position) { ForEach(PokerPosition.allCases,id:\.self) { Text($0.rawValue).tag($0) } }.disabled(analysis.currentHand == nil || analysis.isReview)
+            Picker("Preflop action",selection:$analysis.preflopSituation) { ForEach(PreflopSituation.allCases,id:\.self) { Text($0.rawValue).tag($0) } }.disabled(analysis.currentHand == nil || analysis.isReview)
             HStack { Text("Big blind ($)"); TextField("e.g. 0.10",text:$analysis.bigBlindText).textFieldStyle(.roundedBorder) }
             Text("First-in rules cover early/middle/hijack/cutoff/button at ≥50 BB effective, without antes or straddles. 98s is included in the cutoff opening range. Choose a legal raise size on the table.").font(.caption)
-            Text("These are conservative cash-game heuristics, not solver solutions. Limped, raised, short-stack and blind-defense strategies are not implemented. Position does not change raw showdown equity; it changes how a hand can be played. Postflop dollar EV still excludes future bets, actual ranges and rake.").font(.caption).foregroundStyle(.secondary)
+            Text("These are conservative cash-game heuristics, not solver solutions. General limped, raised, short-stack and blind-defense charts are not implemented. A narrow postflop value-raise rule uses limped-pot context. Position does not change raw showdown equity; it changes how a hand can be played. Postflop dollar EV still excludes future bets, actual ranges and rake.").font(.caption).foregroundStyle(.secondary)
             Link("Starting hands & position · PokerStars Learn",destination:URL(string:"https://www.pokerstars.com/poker/learn/lesson/poker-starting-hands/")!).font(.caption)
         }.fixedSize(horizontal:false,vertical:true).preferredColorScheme(.dark)
     }

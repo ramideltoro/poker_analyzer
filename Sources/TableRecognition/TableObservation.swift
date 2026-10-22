@@ -53,7 +53,8 @@ public struct TableObservation: Sendable, Equatable {
     /// Confirm the current hero, extra-call price and action buttons independently.
     public func agreesForActions(with other: TableObservation) -> Bool {
         guard let a = hero, let b = other.hero, let ac = controls, let bc = other.controls,
-              a.activity == .active, b.activity == .active, callCents == other.callCents,
+              a.activity == .active, b.activity == .active, let call=callCents, call>=0, callCents == other.callCents,
+              call==0 ? (ac.canCheck && !ac.canCall) : (ac.canCall && !ac.canCheck),
               ac.canFold == bc.canFold, ac.canCheck == bc.canCheck, ac.canCall == bc.canCall,
               ac.canBet == bc.canBet, ac.canRaise == bc.canRaise,
               abs(a.bounds.rect.midX-b.bounds.rect.midX) < 0.015,
@@ -81,6 +82,14 @@ public struct TableObservation: Sendable, Equatable {
         return zip(seats,other.seats).allSatisfy { a,b in
             a.id == b.id && a.isHero == b.isHero && a.stackCents == b.stackCents && a.betCents == b.betCents && a.activity == b.activity &&
             abs(a.bounds.rect.midX-b.bounds.rect.midX) < 0.015 && abs(a.bounds.rect.midY-b.bounds.rect.midY) < 0.015
+        }
+    }
+    /// Probability inputs do not depend on prices, stacks or whose controls are visible.
+    public func agreesForEquity(with other: TableObservation) -> Bool {
+        guard trackingUsable, other.trackingUsable, seats.count==other.seats.count else { return false }
+        return zip(seats,other.seats).allSatisfy { a,b in
+            a.id==b.id && a.isHero==b.isHero && a.activity==b.activity && a.activity != .unknown &&
+            abs(a.bounds.rect.midX-b.bounds.rect.midX)<0.015 && abs(a.bounds.rect.midY-b.bounds.rect.midY)<0.015
         }
     }
     /// Inactive players' remaining chips do not change current-pot EV. Ignore their OCR jitter.

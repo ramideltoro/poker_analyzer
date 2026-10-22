@@ -38,6 +38,8 @@ struct HandAnalysisView: View {
     }
     private func summary(height: CGFloat) -> some View {
         let expanded = height >= 150
+        let shownEstimate = analysis.isPlanning ? analysis.forecast?.estimate : analysis.display.estimate
+        let estimateCurrent = analysis.isPlanning ? analysis.forecastConfirmed && analysis.forecast?.estimate != nil : analysis.estimateIsCurrent
         return VStack(alignment:.leading,spacing:7) {
             HStack {
                 Text("HAND PROBABILITIES & EV").sectionLabel()
@@ -50,16 +52,16 @@ struct HandAnalysisView: View {
                 HStack(alignment:.top,spacing:18) {
                     headline("Showdown equity",value:analysis.display.result.map { percent($0.equity) },note:"Vs random hands, including ties",current:analysis.equityIsCurrent,color:DashboardStyle.accent,size:expanded ? 37 : 26)
                         .help("Equity is your average share of the pot, including your fraction of tied pots.")
-                    headline(analysis.isReview ? "Last decision EV" : "Check-down call EV",value:analysis.display.estimate.map { dollars($0.value) },note:analysis.display.estimate.map { analysis.display.result?.exact == true ? "Enumerated under random-hand model" : "95%: \(dollars($0.lower)) to \(dollars($0.upper))" } ?? "95% sampling range: —",current:analysis.estimateIsCurrent,color:.primary,size:expanded ? 37 : 26)
+                    headline(analysis.isPlanning ? "Forecast call EV" : analysis.isReview ? "Last decision EV" : "Check-down call EV",value:shownEstimate.map { dollars($0.value) },note:shownEstimate.map { (analysis.isPlanning ? analysis.forecast?.result : analysis.display.result)?.exact == true ? "Enumerated under random-hand model" : "95%: \(dollars($0.lower)) to \(dollars($0.upper))" } ?? "95% sampling range: —",current:estimateCurrent,color:.primary,size:expanded ? 37 : 26)
                         .help("Check-down call EV = random-hand equity × (eligible pot + call) − call. Assumes everyone reaches showdown without more betting or rake. This is not a full strategic action EV. Saved EV stays frozen in review.")
-                    headline("Call threshold",value:analysis.display.estimate.map { percent($0.requiredEquity) },note:"Break-even expected pot share",current:analysis.estimateIsCurrent,color:.orange,size:expanded ? 37 : 26)
+                    headline("Call threshold",value:shownEstimate.map { percent($0.requiredEquity) },note:"Break-even expected pot share",current:estimateCurrent,color:.orange,size:expanded ? 37 : 26)
                 }.frame(maxWidth:.infinity)
                 Divider().frame(height:44)
                 HStack(spacing:6) {
                     amount("Total pot",money(analysis.display.table?.potCents),current:analysis.tableConfirmed && analysis.table?.potCents != nil,input:!analysis.automatic,text:$analysis.potText,help:"Chips already in the pot before your new call.")
-                    amount("Additional call",money(analysis.display.table?.callCents),current:analysis.tableConfirmed && analysis.table?.callCents != nil,input:!analysis.automatic,text:$analysis.callText,help:"New chips needed to call; checking costs zero.")
+                    amount(analysis.isPlanning ? "Assumed call" : "Additional call",money(analysis.isPlanning ? analysis.forecast?.callCents : analysis.display.table?.callCents),current:analysis.isPlanning ? analysis.forecastConfirmed && analysis.forecast?.callCents != nil : analysis.tableConfirmed && analysis.table?.callCents != nil,input:!analysis.automatic,text:$analysis.callText,help:"New chips needed to call; checking costs zero.")
                     amount("Your stack",money(analysis.display.table?.hero?.stackCents),current:analysis.tableConfirmed && analysis.table?.hero?.stackCents != nil,help:"Your remaining chips, excluding chips already bet.")
-                    amount("Eligible pot",analysis.display.eligiblePotDollars.map { String(format:"$%.2f",$0) } ?? "—",current:analysis.estimateIsCurrent,help:"Pot used for EV after any supported unmatched-wager adjustment. Unwagered stacks are excluded.")
+                    amount("Eligible pot",(analysis.isPlanning ? analysis.forecast?.context.map { Double($0.potCents)/100 } : analysis.display.eligiblePotDollars).map { String(format:"$%.2f",$0) } ?? "—",current:estimateCurrent,help:"Pot used for EV after any supported unmatched-wager adjustment. Unwagered stacks are excluded.")
                 }.frame(maxWidth:.infinity)
             }.frame(height:expanded ? 76 : 58)
             Text(analysis.simulationSummary).font(.system(size:expanded ? 12 : 10,design:.monospaced)).foregroundStyle(.secondary)
@@ -202,7 +204,7 @@ struct HandAnalysisView: View {
             Text(analysis.amountHelp).font(.system(size:10)).foregroundStyle(.secondary).lineLimit(1).help(analysis.amountHelp)
             Spacer(minLength:4)
             TimelineView(.periodic(from:.now,by:1)) { context in
-                Text(analysis.estimateIsCurrent ? "Current EV" : analysis.display.estimateTime.map { "Last EV \(max(0,Int(context.date.timeIntervalSince($0))))s ago" } ?? "Waiting for EV")
+                Text(analysis.isPlanning ? (analysis.forecast?.estimate != nil ? "Conditional EV" : "Forecast updating") : analysis.estimateIsCurrent ? "Current EV" : analysis.display.estimateTime.map { "Last EV \(max(0,Int(context.date.timeIntervalSince($0))))s ago" } ?? "Waiting for EV")
                     .font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary)
             }.frame(width:125,alignment:.trailing)
         }.padding(.horizontal,4)
