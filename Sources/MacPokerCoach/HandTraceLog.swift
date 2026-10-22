@@ -38,6 +38,8 @@ import TableRecognition
             "board_cards":hand?.board.map { $0.card.code }.joined(separator:" ") ?? "",
             "cards_mode":hand == nil ? "absent" : hand!.isReview ? "saved_what_if" : "confirmed_current",
             "observed_timestamp":hand.map { ISO8601DateFormatter().string(from:$0.timestamp) } ?? "unknown",
+            "recognition_stage":analysis.reading.availability.rawValue,"recognition_message":analysis.reading.message,
+            "recognition_hole_cards":analysis.reading.confirmedHole.map { $0.card.code }.joined(separator:" "),
             "status":status,"position":analysis.position.rawValue,"preflop_situation":analysis.preflopSituation.rawValue,
             "big_blind_cents":analysis.preflopContext.bigBlindCents.map(String.init) ?? "unknown",
             "observed_pot_cents":observed?.potCents.map(String.init) ?? "unknown",

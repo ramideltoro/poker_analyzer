@@ -7,6 +7,8 @@ struct HandAnalysisView: View {
     @ObservedObject var tracking: PlayTracking
     @State private var tableTab = 0
     @State private var showingDetails = false
+    private var boardPending: Bool { analysis.currentHand==nil && analysis.reading.confirmedHole.count==2 }
+    private var shownDetails: RunoutDetails? { boardPending ? nil : analysis.details }
     var height: CGFloat = DashboardStyle.analysisHeight
     private func percent(_ value: Double) -> String { String(format:"%.1f%%",value*100) }
     private func dollars(_ value: Double) -> String { String(format:value < 0 ? "−$%.2f" : "+$%.2f",abs(value)) }
@@ -89,13 +91,13 @@ struct HandAnalysisView: View {
     }
     private func handDetails(height: CGFloat) -> some View {
         let hand = analysis.display.hand
-        let hole = hand?.hole.map(\.card) ?? [], board = hand?.board.map(\.card) ?? []
+        let hole = boardPending ? analysis.reading.confirmedHole.map(\.card) : hand?.hole.map(\.card) ?? [], board = boardPending ? [] : hand?.board.map(\.card) ?? []
         let starting = HandDetails.startingClass(hole)
         let reference = starting.flatMap { ReferenceData.shared?.classes[$0] }
         let best = HandDetails.bestFive(hole+board)
         let large = height >= 320
         let roomy = height >= 250
-        let street = [0:"Preflop",3:"Flop",4:"Turn",5:"River"][board.count] ?? "Waiting"
+        let street = boardPending ? "Board pending" : (analysis.currentHand==nil && hand != nil ? "Last " : "") + ([0:"Preflop",3:"Flop",4:"Turn",5:"River"][board.count] ?? "Waiting")
         return VStack(alignment:.leading,spacing:large ? 5 : roomy ? 4 : 3) {
             HStack {
                 Text("HAND DETAILS").sectionLabel()
@@ -107,23 +109,23 @@ struct HandAnalysisView: View {
                     .buttonStyle(.plain).help("Full card list and historical context").accessibilityLabel("More hand details")
                     .popover(isPresented:$showingDetails,arrowEdge:.trailing) { extendedDetails.padding(20).frame(width:420) }
             }.frame(height:roomy ? 20 : 16)
-            Text(analysis.details?.madeHand ?? (hand == nil ? "Waiting for cards" : "Preflop hand"))
+            Text(boardPending ? "Board not confirmed" : shownDetails?.madeHand ?? (hand == nil ? "Waiting for cards" : "Preflop hand"))
                 .font(.system(size:large ? 26 : roomy ? 23 : 19,weight:.semibold,design:.rounded)).lineLimit(1).frame(height:roomy ? 27 : 23,alignment:.leading)
-            Text((analysis.position == .unknown ? "Position: not confirmed · " : "\(analysis.position.rawValue) · ")+HandDetails.texture(board)).font(.system(size:roomy ? 12 : 10)).foregroundStyle(.secondary)
+            Text((analysis.position == .unknown ? "Position: not confirmed · " : "\(analysis.position.rawValue) · ")+(boardPending ? "Reading current community cards" : HandDetails.texture(board))).font(.system(size:roomy ? 12 : 10)).foregroundStyle(.secondary)
                 .lineLimit(2).frame(height:roomy ? 28 : 22,alignment:.topLeading)
-            Text("Best five: \(best.isEmpty ? "waiting for flop" : best.map(\.display).joined(separator:"  "))")
+            Text("Best five: \(boardPending ? "board not confirmed" : best.isEmpty ? "waiting for flop" : best.map(\.display).joined(separator:"  "))")
                 .font(.system(size:roomy ? 14 : 11,weight:.medium)).lineLimit(1).frame(height:roomy ? 20 : 16,alignment:.leading)
                 .help("One best-five selection from your saved/recognized cards and board. Equivalent selections can exist in tied hands.")
             HStack(spacing:8) {
-                detailMetric("Improve next",analysis.details?.nextCardImprovement.map(percent) ?? "—",expanded:roomy)
-                detailMetric("Improve by river",analysis.details?.riverImprovement.map(percent) ?? "—",expanded:roomy)
-                detailMetric("Improving cards",analysis.details.map { String($0.improvingCards.count) } ?? "—",expanded:roomy)
-                detailMetric("Runouts",analysis.details.map { $0.runouts.formatted() } ?? "—",expanded:roomy)
+                detailMetric("Improve next",shownDetails?.nextCardImprovement.map(percent) ?? "—",expanded:roomy)
+                detailMetric("Improve by river",shownDetails?.riverImprovement.map(percent) ?? "—",expanded:roomy)
+                detailMetric("Improving cards",shownDetails.map { String($0.improvingCards.count) } ?? "—",expanded:roomy)
+                detailMetric("Runouts",shownDetails.map { $0.runouts.formatted() } ?? "—",expanded:roomy)
             }.frame(height:roomy ? 40 : 34)
-            Text("Improving: \(analysis.details?.improvingCards.map(\.display).joined(separator:" ") ?? "—")")
+            Text("Improving: \(shownDetails?.improvingCards.map(\.display).joined(separator:" ") ?? "—")")
                 .font(.system(size:roomy ? 12 : 10)).foregroundStyle(.secondary).lineLimit(2)
                 .frame(height:large ? 36 : roomy ? 32 : 24,alignment:.topLeading)
-                .help("\(analysis.details?.improvingCards.map(\.display).joined(separator:" ") ?? "Available on flop/turn"). These improve the hand category and can improve the board for everyone.")
+                .help("\(shownDetails?.improvingCards.map(\.display).joined(separator:" ") ?? "Available on flop/turn"). These improve the hand category and can improve the board for everyone.")
             if large {
                 Text("Exact category-improvement probabilities from all legal remaining board runouts. A higher category does not guarantee winning.")
                     .font(.system(size:11)).foregroundStyle(.secondary).lineLimit(2).frame(height:26,alignment:.topLeading)
@@ -143,13 +145,13 @@ struct HandAnalysisView: View {
         }.frame(maxWidth:.infinity,alignment:.leading)
     }
     private var extendedDetails: some View {
-        let starting = HandDetails.startingClass(analysis.display.hand?.hole.map(\.card) ?? [])
+        let starting = HandDetails.startingClass(boardPending ? analysis.reading.confirmedHole.map(\.card) : analysis.display.hand?.hole.map(\.card) ?? [])
         let reference = starting.flatMap { ReferenceData.shared?.classes[$0] }
         return VStack(alignment:.leading,spacing:14) {
             Text("Hand details · \(starting ?? "—")").font(.title3).fontWeight(.semibold)
             Text("Next-card category improvements").font(.headline)
-            Text(analysis.details?.improvingCards.map(\.display).joined(separator:"  ") ?? "Available after a confirmed flop.")
-            Text(analysis.details.map { "\($0.runouts.formatted()) exact remaining board runouts. These cards can improve the board alone; they are not clean winning outs." } ?? "A preflop hand has no made five-card category yet.")
+            Text(shownDetails?.improvingCards.map(\.display).joined(separator:"  ") ?? "Available after a confirmed flop.")
+            Text(shownDetails.map { "\($0.runouts.formatted()) exact remaining board runouts. These cards can improve the board alone; they are not clean winning outs." } ?? (boardPending ? "The board is not confirmed yet." : "A preflop hand has no made five-card category yet."))
             Divider()
             Text("Historical starting-hand context").font(.headline)
             Text(reference.map { "\($0.known.formatted()) revealed \(starting ?? "") samples; \($0.river.formatted()) with a complete board. Most common recorded finish: \($0.mostCommonFinish)." } ?? "Waiting for a recognized starting hand.")

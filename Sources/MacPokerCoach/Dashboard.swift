@@ -66,7 +66,7 @@ struct RootView: View {
         return HStack(spacing:22) {
             VStack(alignment:.leading,spacing:6) {
                 Text("YOUR CARDS").sectionLabel()
-                HStack(spacing:7) { ForEach(0..<2,id:\.self) { i in PlayingCard(card:analysis.display.hand?.hole[safe:i]?.card,muted:model.hand == nil,scale:scale) } }
+                HStack(spacing:7) { ForEach(0..<2,id:\.self) { i in PlayingCard(card:model.confirmedHole[safe:i]?.card ?? analysis.display.hand?.hole[safe:i]?.card,muted:model.hand == nil && model.confirmedHole.isEmpty,scale:scale) } }
             }.frame(maxWidth:.infinity)
             Divider().frame(height:76)
             VStack(alignment:.leading,spacing:6) {
@@ -75,9 +75,9 @@ struct RootView: View {
             }.frame(maxWidth:.infinity)
             Divider().frame(height:76)
             VStack(alignment:.trailing,spacing:7) {
-                Label(analysis.isReview ? "Saved-card review" : model.hand == nil ? "Waiting for cards" : "Confirmed cards",systemImage:analysis.isReview ? "clock.arrow.circlepath" : "suit.club")
+                Label(analysis.isReview ? "Saved-card review" : model.confirmedHole.count==2 && model.hand==nil ? "Cards read · board pending" : model.hand == nil ? (analysis.reading.received ? analysis.reading.availability.label : "Waiting for cards") : "Confirmed cards",systemImage:analysis.isReview ? "clock.arrow.circlepath" : "suit.club")
                     .font(.system(size:12,weight:.medium)).foregroundStyle(analysis.isReview ? .orange : DashboardStyle.accent)
-                Text(analysis.isReview ? "Your saved cards + the visible board.\nLast decision EV stays frozen." : "Select the Safari poker window on Start.\nKeep the table tab open and readable.")
+                Text(analysis.isReview ? "Your saved cards + the visible board.\nLast decision EV stays frozen." : model.confirmedHole.count==2 && model.hand==nil ? "Your hole cards are current.\nCommunity cards are still being read." : "Select the Safari poker window on Start.\nKeep the table tab open and readable.")
                     .font(.system(size:10)).foregroundStyle(.secondary).multilineTextAlignment(.trailing).lineLimit(2)
                 Button { page = 1 } label: {
                     Text("\(tracking.archive.hands.count) hands · net \(tracking.totalNetCents.map { String(format:"%+.2f USD",Double($0)/100) } ?? "—")*")

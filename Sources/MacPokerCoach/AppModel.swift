@@ -5,6 +5,7 @@ import Combine
 
 @MainActor final class AppModel: ObservableObject {
     @Published private(set) var hand: LiveHand?
+    @Published private(set) var confirmedHole=[DetectedCard]()
     @Published private(set) var status = "Click Start and choose the Safari poker window."
     @Published private(set) var faces = 0
     @Published private(set) var scanned = 0
@@ -61,7 +62,7 @@ import Combine
     func showHandTraces() { handTrace.reveal() }
     private func recordHandTrace() { handTrace.record(hand:hand,observed:traceTable,analysis:analysis,display:analysis.display,status:status) }
     func clear(_ reason: String,keepLayout: Bool = false) {
-        generation = UUID(); busy = false; pending = nil; noCardsSince = nil; stabilizer.reset(keepLayout:keepLayout); hand = nil; faces = 0; lastScan = nil; status = reason
+        generation = UUID(); busy = false; pending = nil; noCardsSince = nil; stabilizer.reset(keepLayout:keepLayout); hand = nil; confirmedHole=[]; faces = 0; lastScan = nil; status = reason
         handTrace.end(reason); traceTable=nil
         reviewTracker.reset(); analysis.reset()
         tracking.endTable(reason)
@@ -92,8 +93,8 @@ import Combine
                 switch result {
                 case .success(let scan): self.acceptScan(scan)
                 case .failure(let error):
-                    self.stabilizer.reset(keepLayout:true); self.hand = nil; self.status = "Card detection failed on this frame; retrying…"
-                    self.traceTable=nil; self.analysis.update(nil)
+                    self.stabilizer.reset(keepLayout:true); self.hand = nil; self.confirmedHole=[]; self.status = "Card detection failed on this frame; retrying…"
+                    self.traceTable=nil; self.analysis.update(nil,recognition:CardReadiness(message:"Card detection failed on this frame; retrying.",received:true))
                     self.log.write("detector_error",["domain":(error as NSError).domain,"code":"\((error as NSError).code)","message":error.localizedDescription])
                 }
                 if let (next,timestamp,excluded) = self.pending {
@@ -114,11 +115,13 @@ import Combine
         guard now.timeIntervalSince(scan.timestamp) <= 2.5, scan.timestamp.timeIntervalSince(now) <= 1 else { clear("Scanning continues · waiting for a fresh screen reading…",keepLayout:true); return }
         scanned += 1; faces = scan.cards.count; candidates = scan.rectangles; milliseconds = Int(scan.seconds*1000); lastScan = scan.timestamp
         let result = stabilizer.accept(scan)
+        confirmedHole=stabilizer.confirmedHole
         hand = reviewTracker.accept(live:result.0,scan:scan)
         tracking.observe(table:scan.table,hand:hand,time:scan.timestamp)
         status = hand?.isReview == true ? "Saved hole cards · continuing visible-board what-if review" : result.1
         traceTable=scan.table
-        analysis.update(hand,table:scan.table)
+        let recognition=CardReadiness(faces:scan.cards.count,confirmedHole:confirmedHole,message:scan.cards.isEmpty ? scan.diagnostics.summary : result.1,received:true)
+        analysis.update(hand,table:scan.table,recognition:recognition)
         if scan.cards.isEmpty && !stabilizer.hasLayout { status = scan.diagnostics.summary }
         if scan.cards.isEmpty {
             if noCardsSince == nil { noCardsSince = scan.timestamp }
@@ -128,7 +131,7 @@ import Combine
         } else { noCardsSince = nil }
         recordHandTrace()
         let advice = analysis.actionAdvice
-        log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","saved_card_review":"\(hand?.isReview == true)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)",
+        log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","saved_card_review":"\(hand?.isReview == true)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)","confirmed_hole_count":"\(confirmedHole.count)","presented_advice_state":analysis.presentedAdvice.state.rawValue,
                                   "table_observed":"\(scan.table != nil)","table_confirmed":"\(analysis.tableConfirmed)","seats_read":"\(scan.table?.seats.count ?? 0)",
                                   "readable_stacks":"\(scan.table?.seats.filter { $0.stackCents != nil }.count ?? 0)","unclear_seats":"\(scan.table?.seats.filter { $0.activity == .unknown }.count ?? 0)",
                                   "pot_read":"\(scan.table?.potCents != nil)","call_read":"\(scan.table?.callCents != nil)","side_pots_detected":"\(scan.table?.sidePots ?? false)",

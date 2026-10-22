@@ -95,7 +95,7 @@ struct TurnForecast {
             if let opening=projectedContext.suggestion(hole:hole,table:table) {
                 var plan=opening; plan.reason="Conditional assuming-folds plan. "+plan.reason.replacingOccurrences(of:"User-confirmed first-in context",with:"Projected first-in context"); return plan
             }
-            return ActionAdvice(title:"WAIT",reason:"Preflop plan needs position, prior action, readable wagers and supported stack depth. \(assumption)",kind:nil,availability:.forecast)
+            return ActionAdvice(title:"WAIT",reason:"Preflop plan needs position, prior action, readable wagers and supported stack depth. \(assumption)",kind:nil,availability:.preflop)
         }
         if callCents==nil {
             if table.activeOpponents.contains(where:{ ($0.betCents ?? 0)>0 }) { return ActionAdvice(title:"WAIT",reason:"A wager is visible but the additional call cannot be resolved. Equity keeps updating; confirming the current wagers before a price-based plan.",kind:nil,availability:.forecast) }

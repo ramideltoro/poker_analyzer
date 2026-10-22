@@ -1,6 +1,15 @@
-# Live Card Reader · 0.16.0
+# Live Card Reader · 0.16.1
 
 Continuously scans the Safari window (recommended) or monitor you select and automatically looks for visible playing-card faces. It displays your detected hole cards, community cards, current combination, local showdown equity and a simplified dollar EV for calling. It automatically reads the current pot, Call/Check controls, occupied players’ remaining stacks and visible card backs. There is one dashboard with Start/Stop, Show logs, Play history and an optional manual-input override. Shown opponent hands stay in memory for the current table; your own observations and measured chip intervals are saved locally. No browser integration or automated betting.
+
+## Clear recognition and decision status
+
+The panel distinguishes **Confirming hole cards**, **Reading community cards**, **Cards unreadable**, **Reading table details**, and missing strategy context. A current confirmed hand no longer receives a generic missing-hand explanation just because prices, opponents or action controls are unresolved. General diagnostics record the displayed availability state separately from the underlying live-action state, plus a confirmed-hole count. Local hand traces include the recognition stage and current independently confirmed hole cards.
+
+Two hole cards can remain confirmed and visible while an incomplete board prevents a complete current hand. This keeps the hole cards current without treating a partial flop as preflop or using an old board for a new live decision. Shrinking board readings with the same hole cards suppress live math until the street is readable again; fully repeated board readings can correct a previous accepted card. Cards disappear from the current-hole channel immediately when missing/partial/ambiguous; old display cards stay muted and historical. A different confirmed hole pair with an incomplete board cannot inherit the previous hand’s suggestion. No recognition acceptance thresholds were lowered. Identical hole cards with no clear new-round cue remain ambiguous and may require Stop → Start.
+
+If **Cards unreadable** remains while cards are visible in Safari, that is a recognition/source issue. Select the Safari poker window, keep the table tab open, and supply a fresh screenshot plus general diagnostic log if it persists. A status change does not establish that unreadable card artwork was fixed.
+
 
 ## Before-turn plans, postflop value and local hand traces
 
@@ -121,13 +130,13 @@ Version 0.15.0 includes PH Evaluator lookup tables, an aggregate of the download
 
 Version 0.5.1 adds the supplied artwork's diamond silhouette, completing all four suit references. In the 7:20:45 PM screenshot, the previous version recognized the three spades on the board but rejected both hole-card diamonds because their suit matches were ambiguous. The updated reader detects 9-diamonds/5-diamonds and exactly 6-spades/4-spades/Q-spades at the original resolution and at 3840×2160, 2560×1440 and 1920×1080 with small pixel offsets. The previous A-clubs/J-hearts flop and Q-clubs/5-clubs crop also still pass. Acceptance thresholds are unchanged. These are image-replay checks; other live hands still need validation.
 
-Quit and reopen the app after updating; check **v0.16.0** at the bottom. Start screen sharing, leave the table visible for 10–15 seconds, then choose **Show logs → General diagnostics**. Finder selects this launch's `.jsonl` file. Attach that file for diagnosis. It is in `~/Library/Application Support/LiveCardReader/Logs/`.
+Quit and reopen the app after updating; check **v0.16.1** at the bottom. Start screen sharing, leave the table visible for 10–15 seconds, then choose **Show logs → General diagnostics**. Finder selects this launch's `.jsonl` file. Attach that file for diagnosis. It is in `~/Library/Application Support/LiveCardReader/Logs/`.
 
 Logs contain app/build/OS version, picker and permission-preflight events, capture errors, stream status codes, input dimensions, hint counts and accepted-face rectangles, received-frame counts, scan duration and frame age, exclusion coverage, candidate counts, rank/suit match scores and rejection categories. Table diagnostics add field-presence flags, detected/readable seat counts, confirmation state and generic incomplete reasons; they exclude amounts and recognized text. Per-candidate details record the rectangle, crop method, numeric match scores/margins and rejection stage, without predicted ranks or suits. The global permission preflight is diagnostic only; picker-authorized capture can work even when the global permission flag is false. Rejection counts describe attempts, which can include multiple proposals for the same shape.
 
 ## Repeated screen-recording permission dialog
 
-The v0.4.1 logs showed successful `capture_started` events followed immediately by `snapshot_error` code `-3801` (TCC permission denied). The extra screenshot request then stopped the approved stream. Version 0.4.2 removed that request, and the supplied v0.4.2 log confirms 82 incoming frames and completed scans without that error. Quit the old app completely and open `dist/Live Card Reader.app`; verify **v0.16.0** before clicking Start. Selecting a source in Apple's sharing picker for each new session is expected.
+The v0.4.1 logs showed successful `capture_started` events followed immediately by `snapshot_error` code `-3801` (TCC permission denied). The extra screenshot request then stopped the approved stream. Version 0.4.2 removed that request, and the supplied v0.4.2 log confirms 82 incoming frames and completed scans without that error. Quit the old app completely and open `dist/Live Card Reader.app`; verify **v0.16.1** before clicking Start. Selecting a source in Apple's sharing picker for each new session is expected.
 
 This development build is ad-hoc signed. Rebuilding changes its code identity, so an existing System Settings permission may refer to an earlier build. If macOS still explicitly requests global screen-recording access, remove the old Live Card Reader entry in System Settings → Privacy & Security → Screen & System Audio Recording, add the exact current app from `dist`, enable it and quit/reopen the app. Do not reset permissions for unrelated apps. Apple's explanation of development signing and privacy authorization is at https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements.
 

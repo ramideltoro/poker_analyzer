@@ -10,17 +10,26 @@ import TableRecognition
     @Published var bigBlindText = "" { didSet { refreshDisplay() } }
     private var contextHole: [Card]?
     var preflopContext: PreflopContext { PreflopContext(position:position,situation:preflopSituation,bigBlindCents:TableMoney.cents(bigBlindText,requireCurrency:false)) }
-    var showsLastAdvice: Bool { (isReview || current == nil) && (display.lastAdvice ?? display.lastForecastAdvice) != nil }
+    var showsLastAdvice: Bool {
+        if current==nil, reading.confirmedHole.count==2,
+           Set(reading.confirmedHole.map(\.card)) != Set(display.hand?.hole.map(\.card) ?? []) { return false }
+        return (isReview || current == nil) && (display.lastAdvice ?? display.lastForecastAdvice) != nil
+    }
     var showsLastForecast: Bool { showsLastAdvice && display.lastAdvice == nil }
     var isPlanning: Bool { automatic && current != nil && !isReview && !actionControlsConfirmed }
     var presentedAdvice: ActionAdvice {
         if showsLastAdvice { return (display.lastAdvice ?? display.lastForecastAdvice)! }
         if isPlanning {
-            guard forecastConfirmed, let forecast else { return ActionAdvice(title:"WAIT",reason:"Preparing your turn from current cards and player activity. Observed actions update the forecast; assumptions are not recorded as actual folds.",kind:nil,availability:.forecast) }
+            guard let table else { return ActionAdvice(title:"WAIT",reason:"Your cards are confirmed. Reading occupied seats and the current pot; hand recognition is not the missing input.",kind:nil,availability:.tableReading) }
+            guard forecastConfirmed, let forecast else {
+                let detail=table.incompleteReason ?? "Confirming consecutive player and wager readings."
+                return ActionAdvice(title:"WAIT",reason:"Your cards are confirmed. "+detail+" Scanning continues; a forecast appears when those inputs agree.",kind:nil,availability:.tableReading)
+            }
             return forecast.advice(hole:current!.hole.map(\.card),board:current!.board.map(\.card),context:preflopContext)
         }
         return actionAdvice
     }
+    @Published private(set) var reading=CardReadiness()
     var onDecisionUpdate: (() -> Void)?
     @Published private(set) var forecast: TurnForecast?
     @Published private(set) var forecastConfirmed=false
@@ -81,10 +90,11 @@ import TableRecognition
         defer { updating = false; refreshDisplay() }
         opponents = count; potText = ""; callText = ""; refreshAnalysis()
     }
-    func update(_ hand: LiveHand?,table reading: TableObservation? = nil) {
+    func update(_ hand: LiveHand?,table reading: TableObservation? = nil,recognition: CardReadiness? = nil) {
         updating = true
         defer { updating = false; refreshDisplay() }
         current = hand
+        if let recognition { self.reading=recognition }
         if let hand {
             let detailKey = CardsKey(hole:hand.hole.map(\.card),board:hand.board.map(\.card))
             if detailsKey != detailKey { detailsKey = detailKey; details = RunoutDetails(hole:detailKey.hole,board:detailKey.board) }
@@ -119,7 +129,7 @@ import TableRecognition
         refreshAnalysis(); refreshForecast(isObservation:true)
     }
     /// Stop, stale capture or permission loss must remove even presentation-only history.
-    func reset() { update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil; contextHole = nil; position = .unknown; preflopSituation = .unknown; bigBlindText = "" }
+    func reset() { reading=CardReadiness(); update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil; contextHole = nil; position = .unknown; preflopSituation = .unknown; bigBlindText = "" }
     private func validOpponentCount(_ table: TableObservation) -> Bool {
         table.seats.filter(\.isHero).count == 1 && (2...9).contains(table.seats.count) &&
         table.seats.allSatisfy { $0.activity != .unknown } && (1...8).contains(table.activeOpponents.count)
@@ -238,7 +248,7 @@ import TableRecognition
     var hasCards: Bool { current != nil }
     var amountHelp: String {
         if isReview { return "Saved hole cards: probabilities are what-if results against the visible remaining players. Call EV is frozen at the last decision; you have no claim to the pot after folding." }
-        guard current != nil else { return "Waiting for confirmed cards." }
+        guard current != nil else { return reading.received ? reading.reason : "Waiting for confirmed cards." }
         if automatic {
             if isPlanning { return forecast?.estimate != nil ? "Conditional EV uses the stated fold assumption; live action awaits your turn." : "Equity runs before your turn; conditional dollar EV needs readable wagers, pot and stacks." }
             guard let table else { return "Reading the table · last confirmed values stay muted while updating." }
@@ -255,7 +265,7 @@ import TableRecognition
     var equityIsCurrent: Bool { current != nil && result != nil }
     var estimateIsCurrent: Bool { callEstimate != nil }
     var displayStatus: String {
-        if current == nil { return display.hand == nil ? "Waiting for cards" : isReview ? "Review held · waiting for next confirmed hand / board" : "Updating · previous confirmed hand" }
+        if current == nil { if reading.received { return reading.availability.label }; return display.hand == nil ? "Waiting for cards" : isReview ? "Review held · waiting for next confirmed hand / board" : "Updating · previous confirmed hand" }
         if isReview { return calculating ? "Review · updating what-if probabilities" : "Review · saved hole cards, last-decision EV" }
         if calculating { return "Calculating probabilities" }
         if callEstimate != nil { return "Live estimate" }
@@ -266,6 +276,8 @@ import TableRecognition
         return "Updating table readings"
     }
     var simulationSummary: String {
+        if current==nil, reading.received { return reading.confirmedHole.count==2 ? "Hole cards confirmed · reading the community cards before calculating." : reading.availability.label+" · scanning continues; prior values are muted." }
+        if current != nil, display.result==nil { return "Cards confirmed · reading active opponents and calculating probabilities." }
         guard let value = display.result else { return "Waiting for a confirmed hand and opponent count." }
         let model = "vs \(display.opponents) random \(display.opponents == 1 ? "opponent" : "opponents")"
         return value.exact ? "Exact · \(value.samples.formatted()) deals · \(model)" : "\(value.samples.formatted()) deals · \(model) · 95% equity/outcome bound ±\(String(format:"%.2f",value.samplingBound*100)) pp\(value.categoriesExact ? " · exact categories" : "")"

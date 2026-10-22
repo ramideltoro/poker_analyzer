@@ -3,13 +3,17 @@ import PokerCore
 import TableRecognition
 
 enum AdviceAvailability: String {
-    case forecast, preflop, ready, cards, savedHand, controls, calculating, amounts, unsupported, calculationFailed
+    case forecast, preflop, ready, cards, cardConfirmation, boardReading, cardRecognition, tableReading, savedHand, controls, calculating, amounts, unsupported, calculationFailed
     var label: String {
         switch self {
         case .forecast: return "Planning your turn"
         case .preflop: return "Confirm preflop context"
         case .ready: return "Live suggestion"
         case .cards: return "Waiting for cards"
+        case .cardConfirmation: return "Confirming hole cards"
+        case .boardReading: return "Reading community cards"
+        case .cardRecognition: return "Cards unreadable"
+        case .tableReading: return "Reading table details"
         case .savedHand: return "No earlier suggestion"
         case .controls: return "Reading action buttons"
         case .calculating: return "Calculating hand odds"
@@ -148,7 +152,10 @@ struct ActionAdvice: Equatable {
 extension HandAnalysisModel {
     private static func adviceAmount(_ text: String) -> Double? { TableMoney.cents(text,requireCurrency:false).map { Double($0)/100 } }
     var actionAdvice: ActionAdvice {
-        guard let hand = currentHand else { return ActionAdvice(title:"WAIT",reason:"No current cards are confirmed. Scanning continues; new readable cards restart decisions. If cards are visible, use Stop → Start to reselect the Safari window.",kind:nil,availability:.cards) }
+        guard let hand = currentHand else {
+            if reading.received { return ActionAdvice(title:"WAIT",reason:reading.reason,kind:nil,availability:reading.availability) }
+            return ActionAdvice(title:"WAIT",reason:"Start screen sharing to read your current hole cards.",kind:nil,availability:.cards)
+        }
         if hand.isReview { return ActionAdvice(title:"REVIEW",reason:"Only saved cards are available after your cards disappeared. What-if calculations continue; there is no live action for these saved cards.",kind:nil,basis:"SAVED CARDS",availability:.savedHand) }
         if automatic, actionControlsConfirmed, let table,
            let advice = ActionAdvice.immediate(hole:hand.hole.map(\.card),board:hand.board.map(\.card),table:table,confirmedSize:tableConfirmed,situation:preflopSituation,position:position) { return advice }

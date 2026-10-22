@@ -56,7 +56,7 @@ public enum CardGrouping {
         }
         let rows = groups(boardCandidates)
         guard rows.count <= 1, rows.allSatisfy({ (3...5).contains($0.count) }) else {
-            return HandSelection(hole:[],board:[],issue:"Scanning continuously · waiting for clear community cards…")
+            return HandSelection(hole:hole,board:[],issue:"Hole cards read; community cards are incomplete or changing.")
         }
         let board = rows.first ?? []
         guard Set((hole+board).map(\.card)).count == hole.count+board.count else {
@@ -78,6 +78,11 @@ public enum CardGrouping {
         }
         guard boards.count <= 1, !groups.contains(where:{ $0.count > 5 }) else { return HandSelection(hole:[],board:[],issue:"Card layout is ambiguous. Keep one table visible.") }
         let pair = pairs[0], board = boards.first ?? []
+        let center=pair.map { $0.bounds.rect.midX }.reduce(0,+)/2
+        let span=pair[1].bounds.rect.maxX-pair[0].bounds.x
+        if groups.contains(where:{ row in
+            row.count<3 && row != pair && row.contains(where:{ $0.bounds.rect.midY<pair[0].bounds.y && abs($0.bounds.rect.midX-center)<span*2 })
+        }) { return HandSelection(hole:pair,board:[],issue:"Hole cards read; community cards are incomplete or changing.") }
         if let first = board.first, pair[0].bounds.rect.midY <= first.bounds.rect.midY+first.bounds.height*0.3 {
             return HandSelection(hole:[],board:[],issue:"Cannot identify your cards below the board.")
         }
@@ -125,14 +130,16 @@ public enum CardGrouping {
 }
 public struct ReadingStabilizer {
     private var previous: HandSelection?
+    private var lastComplete: HandSelection?
     private var heroAnchor = [UnitRect]()
     private var boardAnchor = [UnitRect]()
+    public private(set) var confirmedHole = [DetectedCard]()
     public var searchRegions: [UnitRect] { heroAnchor+boardAnchor }
     public var hasLayout: Bool { heroAnchor.count == 2 }
     public init() {}
     public mutating func reset(keepLayout: Bool = false) {
-        previous = nil
-        if !keepLayout { heroAnchor = []; boardAnchor = [] }
+        previous = nil; confirmedHole=[]
+        if !keepLayout { heroAnchor = []; boardAnchor = []; lastComplete=nil }
     }
     public mutating func accept(_ scan: CardScan) -> (LiveHand?,String) {
         var selection = CardGrouping.select(scan.cards,near:heroAnchor)
@@ -147,6 +154,16 @@ public struct ReadingStabilizer {
                 }
             }
         }
+        // Missing community-card OCR must not turn an existing flop into a new preflop hand.
+        if selection.issue==nil, let old=lastComplete, old.hole.map(\.card)==selection.hole.map(\.card),
+           selection.board.count<old.board.count {
+            selection=HandSelection(hole:selection.hole,board:[],issue:"Hole cards read; confirming missing community cards from the current street.")
+        }
+        confirmedHole=[]
+        if selection.hole.count==2, let old=previous, old.hole.map(\.card)==selection.hole.map(\.card),
+           zip(old.hole,selection.hole).allSatisfy({ abs($0.bounds.x-$1.bounds.x)<0.05 && abs($0.bounds.y-$1.bounds.y)<0.05 }) {
+            confirmedHole=selection.hole
+        }
         defer { previous = selection }
         if let issue = selection.issue { return (nil,issue) }
         guard let old = previous, old.issue == nil,
@@ -154,6 +171,7 @@ public struct ReadingStabilizer {
               zip(old.hole,selection.hole).allSatisfy({ abs($0.bounds.x-$1.bounds.x) < 0.05 && abs($0.bounds.y-$1.bounds.y) < 0.05 }) else {
             return (nil,"Confirming the detected cards…")
         }
+        lastComplete=selection
         heroAnchor = selection.hole.map(\.bounds)
         boardAnchor = selection.board.map(\.bounds)
         return (LiveHand(hole:selection.hole,board:selection.board,timestamp:scan.timestamp),"Scanning continuously · cards detected")
