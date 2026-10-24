@@ -8,8 +8,13 @@ struct CallThresholdPanel: View {
     @State private var preflopSetup = false
     private func money(_ v: Double?) -> String { v.map { String(format:"$%.2f",$0) } ?? "—" }
     private var price: DecisionPrice? {
+        if analysis.presentedAdvice.basis=="RAISE RESPONSE", let hand=analysis.currentHand, let table=analysis.responseTable,
+           let q=analysis.raiseResponseResult?.equity,
+           let request=RaiseResponseRequest.make(hole:hand.hole.map(\.card),table:table,context:analysis.preflopContext,evidence:analysis.preflopEvidence,preset:analysis.raiseRange) {
+            return try? DecisionPrice(equity:q,pot:Double(request.context.potCents)/100,call:Double(request.context.callCents)/100)
+        }
         if analysis.isPlanning {
-            guard let f=analysis.forecast, let q=f.result?.equity, let c=f.callCents, let p=f.context?.potCents else { return nil }
+            guard let f=analysis.forecast, let q=(analysis.presentedAdvice.basis=="RAISE RESPONSE" ? analysis.raiseResponseResult : f.result)?.equity, let c=f.callCents, let p=f.context?.potCents else { return nil }
             return try? DecisionPrice(equity:q,pot:Double(p)/100,call:Double(c)/100)
         }
         guard let q = analysis.display.decisionEquity, let p = analysis.display.eligiblePotDollars, let c = analysis.display.decisionCallDollars else { return nil }
@@ -17,7 +22,7 @@ struct CallThresholdPanel: View {
     }
     private var odds: String { guard let p = price else { return "—" }; return p.call == 0 ? "Free" : String(format:"%.2f : 1",p.pot/p.call) }
     private var edge: String {
-        guard let q = price?.equity, let required = analysis.display.estimate?.requiredEquity else { return "—" }
+        guard let price else { return "—" }; let q=price.equity, required=price.call/(price.pot+price.call)
         return String(format:"%+.1f pp",(q-required)*100)
     }
     private var maxCall: String {
@@ -38,8 +43,8 @@ struct CallThresholdPanel: View {
             HStack {
                 Text(analysis.showsLastForecast ? "LAST FORECAST" : analysis.showsLastAdvice ? "LAST SUGGESTION" : analysis.isPlanning ? "BEFORE YOUR TURN" : advice.kind == nil ? "DECISION STATUS" : "SUGGESTED ACTION").sectionLabel()
                 Spacer()
-                Button("Position") { preflopSetup = true }.font(.system(size:9)).buttonStyle(.plain).foregroundStyle(DashboardStyle.cyan)
-                    .popover(isPresented:$preflopSetup) { PreflopSetup(analysis:analysis).padding(20).frame(width:390) }
+                Button("Position / ranges") { preflopSetup = true }.font(.system(size:9)).buttonStyle(.plain).foregroundStyle(DashboardStyle.cyan)
+                    .popover(isPresented:$preflopSetup) { ScrollView { PreflopSetup(analysis:analysis).padding(20) }.frame(width:450,height:600) }
                 Button { scenarios = true } label: { Image(systemName:"info.circle") }.buttonStyle(.plain)
                     .help("Decision assumptions and raise scenarios")
                     .popover(isPresented:$scenarios,arrowEdge:.trailing) { DecisionScenarios(analysis:analysis).padding(20).frame(width:470) }
@@ -56,7 +61,7 @@ struct CallThresholdPanel: View {
                 .fixedSize(horizontal:false,vertical:true).frame(height:large ? 48 : 40,alignment:.topLeading).help(advice.reason)
             HStack(spacing:5) {
                 metric("Pot odds",odds,"Eligible pot divided by your additional call. A 3:1 price requires 25% equity in this model.")
-                metric(analysis.isPlanning ? "Plan equity" : "Equity edge",analysis.isPlanning ? analysis.forecast?.result.map { String(format:"%.1f%%",$0.equity*100) } ?? "—" : edge,analysis.isPlanning ? "Conditional equity against players left after the stated assumed folds. The headline showdown equity retains every actually active opponent." : "Your decision equity minus required calling equity, in percentage points.")
+                metric(analysis.presentedAdvice.basis=="RAISE RESPONSE" && analysis.isPlanning ? "Range equity" : analysis.isPlanning ? "Plan equity" : "Equity edge",analysis.isPlanning ? (analysis.presentedAdvice.basis=="RAISE RESPONSE" ? analysis.raiseResponseResult : analysis.forecast?.result).map { String(format:"%.1f%%",$0.equity*100) } ?? "—" : edge,analysis.isPlanning ? "Conditional equity against players left after the stated assumed folds. The headline showdown equity retains every actually active opponent." : "Your decision equity minus required calling equity, in percentage points.")
                 metric("Max call*",maxCall,"Break-even extra call at the current pot: equity × pot ÷ (1 − equity), capped at your readable stack. Assumes the same equity and no later betting or rake.")
                 metric("Eff. SPR",spr,"Largest effective remaining stack matchup divided by eligible pot. Multiway matchups differ; this is future exposure, not extra money in the pot.")
             }.frame(height:large ? 36 : 26)
@@ -64,7 +69,7 @@ struct CallThresholdPanel: View {
                 Text(price.map { "Call price: \(money($0.call)) · minimum pot \(money($0.minimumPot.map { max(0,ceil($0*100-1e-9)/100) }))" } ?? "Waiting for current decision inputs")
                     .font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8).frame(height:14)
             }
-            Text(analysis.isPlanning ? analysis.forecast?.assumption ?? "Assumptions pending; scanning continues." : "Value / price heuristics · actual calling ranges and future responses unknown.")
+            Text(advice.basis=="RAISE RESPONSE" ? "Range response includes a realization scenario; headline equity / EV use random hands." : analysis.isPlanning ? analysis.forecast?.assumption ?? "Assumptions pending; scanning continues." : "Value / price heuristics · actual calling ranges and future responses unknown.")
                 .font(.system(size:8)).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.8).frame(height:12)
         }.padding(8).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height)
             .dashboardPanel().transaction { $0.animation = nil }

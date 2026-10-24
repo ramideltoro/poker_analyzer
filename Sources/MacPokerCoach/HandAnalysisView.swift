@@ -52,7 +52,7 @@ struct HandAnalysisView: View {
             }.frame(height:14)
             HStack(spacing:18) {
                 HStack(alignment:.top,spacing:18) {
-                    headline("Showdown equity",value:analysis.display.result.map { percent($0.equity) },note:"Vs random hands, including ties",current:analysis.equityIsCurrent,color:DashboardStyle.accent,size:expanded ? 37 : 26)
+                    headline("Showdown equity",value:analysis.display.result.map { percent($0.equity) },note:analysis.presentedAdvice.basis=="RAISE RESPONSE" ? "Random-hand model" : "Vs random hands, including ties",current:analysis.equityIsCurrent,color:DashboardStyle.accent,size:expanded ? 37 : 26)
                         .help("Equity is your average share of the pot, including your fraction of tied pots.")
                     headline(analysis.isPlanning ? "Forecast call EV" : analysis.isReview ? "Last decision EV" : "Check-down call EV",value:shownEstimate.map { dollars($0.value) },note:shownEstimate.map { (analysis.isPlanning ? analysis.forecast?.result : analysis.display.result)?.exact == true ? "Enumerated under random-hand model" : "95%: \(dollars($0.lower)) to \(dollars($0.upper))" } ?? "95% sampling range: —",current:estimateCurrent,color:.primary,size:expanded ? 37 : 26)
                         .help("Check-down call EV = random-hand equity × (eligible pot + call) − call. Assumes everyone reaches showdown without more betting or rake. This is not a full strategic action EV. Saved EV stays frozen in review.")

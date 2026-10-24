@@ -163,6 +163,10 @@ extension HandAnalysisModel {
             return ActionAdvice(title:"WAIT",reason:"Confirming your current Call / Check buttons across two readings. New cards, disappearing buttons or a changed call price immediately clear the old action.",kind:nil,availability:.controls)
         }
         if automatic, hand.board.isEmpty, actionControlsConfirmed, let table {
+            if tableConfirmed, let response=raiseResponseAdvice(for:table) { return response }
+            if !tableConfirmed, RaiseResponseRequest.detectsRaise(table,context:preflopContext,evidence:preflopEvidence) {
+                return ActionAdvice(title:"WAIT",reason:"Confirming the changed preflop raise price and stacks across consecutive readings. Earlier preflop context is not required for this response.",kind:nil,availability:.amounts)
+            }
             if tableConfirmed, let opening = preflopContext.suggestion(hole:hand.hole.map(\.card),table:table) { return opening }
             if preflopSituation == .firstIn || position != .unknown {
                 return ActionAdvice(title:"WAIT",reason:"Opening rule needs a confirmed position, everyone folded, a readable big blind, standard unopened pot and ≥50 BB effective stacks. Limped, raised and short-stack pots need a separate strategy; call EV alone cannot decide them.",kind:nil,availability:.preflop)

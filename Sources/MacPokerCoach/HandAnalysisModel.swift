@@ -4,10 +4,21 @@ import PokerCore
 import TableRecognition
 
 @MainActor final class HandAnalysisModel: ObservableObject {
+    typealias CalculateResponse = @Sendable ([Card],[OpponentRange],@escaping @Sendable () -> Bool) throws -> EquityResult
     typealias Calculate = @Sendable ([Card],[Card],Int,@escaping @Sendable () -> Bool) throws -> EquityResult
-    @Published var position: PokerPosition = .unknown { didSet { if !updating { refreshForecast() }; refreshDisplay() } }
-    @Published var preflopSituation: PreflopSituation = .unknown { didSet { refreshDisplay() } }
-    @Published var bigBlindText = "" { didSet { refreshDisplay() } }
+    @Published var position: PokerPosition = .unknown { didSet { if !updating { refreshForecast(); refreshRaiseResponse() }; refreshDisplay() } }
+    @Published var preflopSituation: PreflopSituation = .unknown { didSet { if !updating { refreshRaiseResponse() }; refreshDisplay() } }
+    @Published var bigBlindText = "" { didSet { if !updating { refreshRaiseResponse() }; refreshDisplay() } }
+    @Published var raiseRange: RaiseRangePreset = .balanced { didSet { if !updating { refreshRaiseResponse(); refreshDisplay() } } }
+    @Published private(set) var preflopEvidence=PreflopEvidence()
+    @Published var raiseResponseResult: EquityResult?
+    @Published var responseError: String?
+    var responseKey: RaiseResponseRequest.Key?
+    var responseWorker: Task<EquityResult,Error>?
+    var responseGeneration=UUID()
+    var responseCache=[RaiseResponseRequest.Key:EquityResult]()
+    var responseCacheOrder=[RaiseResponseRequest.Key]()
+    let calculateResponse: CalculateResponse
     private var contextHole: [Card]?
     var preflopContext: PreflopContext { PreflopContext(position:position,situation:preflopSituation,bigBlindCents:TableMoney.cents(bigBlindText,requireCurrency:false)) }
     var showsLastAdvice: Bool {
@@ -25,6 +36,7 @@ import TableRecognition
                 let detail=table.incompleteReason ?? "Confirming consecutive player and wager readings."
                 return ActionAdvice(title:"WAIT",reason:"Your cards are confirmed. "+detail+" Scanning continues; a forecast appears when those inputs agree.",kind:nil,availability:.tableReading)
             }
+            if let hand=current, hand.board.isEmpty, var response=raiseResponseAdvice(for:forecast.table) { response.reason="Conditional plan. "+response.reason; return response }
             return forecast.advice(hole:current!.hole.map(\.card),board:current!.board.map(\.card),context:preflopContext)
         }
         return actionAdvice
@@ -73,7 +85,7 @@ import TableRecognition
 
     init(calculate: @escaping Calculate = { hole,board,opponents,cancelled in
         try EquityEngine.calculate(hole:hole,board:board,opponents:opponents,cancelled:cancelled)
-    }) { self.calculate = calculate }
+    },calculateResponse: @escaping CalculateResponse = { hole,ranges,cancelled in try RangeEquityEngine.calculate(hole:hole,ranges:ranges,cancelled:cancelled) }) { self.calculate = calculate; self.calculateResponse=calculateResponse }
 
     func setAutomatic(_ enabled: Bool) {
         guard enabled != automatic else { return }
@@ -82,7 +94,7 @@ import TableRecognition
         automatic = enabled; potText = ""; callText = ""
         display.estimate = nil; display.context = nil; display.eligiblePotDollars = nil; display.estimateTime = nil
         display.decisionEquity = nil; display.decisionCallDollars = nil
-        invalidate(); refreshAnalysis(); refreshForecast()
+        invalidate(); refreshAnalysis(); refreshForecast(); refreshRaiseResponse()
     }
     func setOpponents(_ count: Int) {
         guard !automatic, (1...8).contains(count), count != opponents else { return }
@@ -90,7 +102,7 @@ import TableRecognition
         defer { updating = false; refreshDisplay() }
         opponents = count; potText = ""; callText = ""; refreshAnalysis()
     }
-    func update(_ hand: LiveHand?,table reading: TableObservation? = nil,recognition: CardReadiness? = nil) {
+    func update(_ hand: LiveHand?,table reading: TableObservation? = nil,recognition: CardReadiness? = nil,preflop: PreflopEvidence? = nil) {
         updating = true
         defer { updating = false; refreshDisplay() }
         current = hand
@@ -108,8 +120,10 @@ import TableRecognition
             display = AnalysisDisplay(); display.lastAdvice = retained; display.lastForecastAdvice = retainedForecast
         }
         if let next, hand?.isReview != true, next.hole != contextHole {
-            contextHole = next.hole; position = .unknown; preflopSituation = .unknown
+            contextHole = next.hole; position = .unknown; preflopSituation = .unknown; preflopEvidence=PreflopEvidence()
         }
+        if hand==nil || hand?.board.isEmpty != true { preflopEvidence=PreflopEvidence() }
+        else if let preflop { preflopEvidence=PreflopEvidence(heroCalled:preflopEvidence.heroCalled || preflop.heroCalled,heroRaised:preflopEvidence.heroRaised || preflop.heroRaised,opponentRaises:max(preflopEvidence.opponentRaises,preflop.opponentRaises)) }
         if next != cardsKey {
             cardsKey = next; potText = ""; callText = ""; tableStabilizer.reset()
             previousActionTable = nil; previousForecast=nil; forecastConfirmed=false
@@ -126,7 +140,7 @@ import TableRecognition
                 opponents = reading.activeOpponents.count
             }
         }
-        refreshAnalysis(); refreshForecast(isObservation:true)
+        refreshAnalysis(); refreshForecast(isObservation:true); refreshRaiseResponse()
     }
     /// Stop, stale capture or permission loss must remove even presentation-only history.
     func reset() { reading=CardReadiness(); update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil; contextHole = nil; position = .unknown; preflopSituation = .unknown; bigBlindText = "" }
@@ -282,7 +296,7 @@ import TableRecognition
         let model = "vs \(display.opponents) random \(display.opponents == 1 ? "opponent" : "opponents")"
         return value.exact ? "Exact · \(value.samples.formatted()) deals · \(model)" : "\(value.samples.formatted()) deals · \(model) · 95% equity/outcome bound ±\(String(format:"%.2f",value.samplingBound*100)) pp\(value.categoriesExact ? " · exact categories" : "")"
     }
-    private func refreshDisplay() {
+    func refreshDisplay() {
         guard !updating else { return }
         var next = display
         if let current { next.hand = current }
@@ -307,7 +321,7 @@ import TableRecognition
         if current?.isReview == false {
             if isPlanning, forecastConfirmed { let plan=presentedAdvice; if plan.kind != nil { next.lastForecastAdvice=plan } }
             let live = actionAdvice
-            if live.kind != nil { next.lastAdvice = live }
+            if live.kind != nil { next.lastAdvice = live; if live.basis=="RAISE RESPONSE", let value=raiseResponseResult { next.decisionEquity=value.equity } }
         }
         display = next; onDecisionUpdate?()
     }
@@ -317,5 +331,5 @@ import TableRecognition
               let value = Double(trimmed), value.isFinite else { return nil }
         return value
     }
-    deinit { worker?.cancel(); forecastWorker?.cancel() }
+    deinit { worker?.cancel(); forecastWorker?.cancel(); responseWorker?.cancel() }
 }

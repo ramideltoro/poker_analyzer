@@ -121,7 +121,7 @@ import Combine
         status = hand?.isReview == true ? "Saved hole cards · continuing visible-board what-if review" : result.1
         traceTable=scan.table
         let recognition=CardReadiness(faces:scan.cards.count,confirmedHole:confirmedHole,message:scan.cards.isEmpty ? scan.diagnostics.summary : result.1,received:true)
-        analysis.update(hand,table:scan.table,recognition:recognition)
+        analysis.update(hand,table:scan.table,recognition:recognition,preflop:tracking.decisionPreflopEvidence)
         if scan.cards.isEmpty && !stabilizer.hasLayout { status = scan.diagnostics.summary }
         if scan.cards.isEmpty {
             if noCardsSince == nil { noCardsSince = scan.timestamp }

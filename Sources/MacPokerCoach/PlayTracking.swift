@@ -157,6 +157,11 @@ final class OwnPlayStore: @unchecked Sendable {
         return values.isEmpty ? nil : values.reduce(0,+)
     }
     var measuredHands: [OwnHandRecord] { archive.hands.filter { $0.netCents != nil } }
+    var decisionPreflopEvidence: PreflopEvidence {
+        let own=(currentHand?.actions ?? []).filter { $0.round==round && $0.street==0 }
+        let raises=opponents.flatMap(\.actions).filter { $0.round==round && $0.street==0 && $0.kind == .raise }.count
+        return PreflopEvidence(heroCalled:own.contains { $0.kind == .call },heroRaised:own.contains { $0.kind == .raise },opponentRaises:raises)
+    }
     var currentHand: OwnHandRecord? { currentHandID.flatMap { id in archive.hands.first { $0.id == id } } }
     var ownStatistics: ActionStatistics { ActionStatistics(events:archive.hands.flatMap { $0.actions ?? [] }) }
 
