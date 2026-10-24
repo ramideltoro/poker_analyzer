@@ -48,9 +48,9 @@ struct RecognizedPosition {
         guard let bb=bigBlind,bb>0 else { return .unknown }
         if ring.contains(where:{ ($0.betCents ?? 0)>bb }) { return .raised }
         if ring.contains(where:{ !$0.isHero && ($0.action == .call || !blindIDs.contains($0.id) && ($0.betCents ?? 0)>0) }) { return .limped }
-        guard ![PokerPosition.smallBlind,.bigBlind].contains(position),table.sidePots==false,
+        guard position != .bigBlind,ring.count>=3,table.sidePots==false,
               table.potCents==bb+bb/2,bb%2==0,
-              (table.hero?.betCents ?? 0)==0,
+              (table.hero?.betCents ?? (position == .smallBlind ? bb/2 : 0)) == (position == .smallBlind ? bb/2 : 0),
               beforeHero.allSatisfy({ $0.activity == .folded && $0.action?.entersPot != true && ($0.betCents ?? 0)==0 }),
               ring.allSatisfy({ ($0.betCents ?? 0)<=bb && $0.action?.entersPot != true }) else { return .unknown }
         return .firstIn

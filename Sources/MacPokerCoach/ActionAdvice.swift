@@ -32,6 +32,8 @@ struct ActionAdvice: Equatable {
     var basis = "PRICE MODEL"
     var availability: AdviceAvailability = .unsupported
     var provisional = false
+    /// An unchanged earlier turn decision, never current action availability or a price input.
+    var retained = false
     var state: AdviceAvailability { kind == nil ? availability : .ready }
     static func priced(equity: Double,estimate: CallEstimate,call: Double) -> ActionAdvice {
         if call == 0 { return ActionAdvice(title:"CHECK",reason:"Checking costs nothing. Keep your hand without adding chips.",kind:.check) }

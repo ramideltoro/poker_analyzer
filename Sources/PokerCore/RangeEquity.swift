@@ -3,7 +3,19 @@ import Foundation
 /// Transparent, uncalibrated cash-game assumptions. Every legal combo in a range has equal weight.
 public enum OpponentRange: String, CaseIterable, Hashable, Sendable {
     case random, caller, tightRaise, balancedRaise, looseRaise, tightReraise, balancedReraise, looseReraise
+    case shortEarlyOpen,shortHijackOpen,shortCutoffOpen,shortButtonOpen,shortSmallBlindOpen
+    private var shortOpening: ShortCashRange? {
+        switch self {
+        case .shortEarlyOpen:return .early
+        case .shortHijackOpen:return .hijack
+        case .shortCutoffOpen:return .cutoff
+        case .shortButtonOpen:return .button
+        case .shortSmallBlindOpen:return .smallBlind
+        default:return nil
+        }
+    }
     public var notation: String {
+        if let shortOpening { return shortOpening.notation }
         switch self {
         case .random: return "any legal hand"
         case .caller: return "22+,A2s+,K9s+,Q9s+,J9s+,T9s,98s,87s,76s,65s,ATo+,KJo+,QJo"
@@ -13,10 +25,12 @@ public enum OpponentRange: String, CaseIterable, Hashable, Sendable {
         case .tightReraise: return "KK+,AKs"
         case .balancedReraise: return "QQ+,AK"
         case .looseReraise: return "TT+,AQs+,AKo"
+        case .shortEarlyOpen,.shortHijackOpen,.shortCutoffOpen,.shortButtonOpen,.shortSmallBlindOpen:return ""
         }
     }
     public func contains(_ cards: [Card]) -> Bool {
         guard cards.count==2, cards[0] != cards[1] else { return false }
+        if let shortOpening { return shortOpening.contains(cards) }
         let h=max(cards[0].rank,cards[1].rank), l=min(cards[0].rank,cards[1].rank), s=cards[0].suit==cards[1].suit
         if self == .random { return true }
         if h==l {
@@ -38,6 +52,7 @@ public enum OpponentRange: String, CaseIterable, Hashable, Sendable {
             if s { return h==14 || (h==13 && l >= (self == .caller ? 9 : 8)) || (h==12 && l>=9) || (h==11 && l>=9) || (h-l==1 && l>=5) }
             return (h==14 && l >= (self == .caller ? 10 : 9)) || (h==13 && l >= (self == .caller ? 11 : 10)) || (h==12 && l >= (self == .caller ? 11 : 10)) || (self == .looseRaise && h==11 && l==10)
         case .random: return true
+        case .shortEarlyOpen,.shortHijackOpen,.shortCutoffOpen,.shortButtonOpen,.shortSmallBlindOpen:return false
         }
     }
 }

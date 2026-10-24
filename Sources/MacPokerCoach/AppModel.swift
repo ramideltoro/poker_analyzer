@@ -135,6 +135,7 @@ import Combine
         let advice = analysis.actionAdvice
         log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","saved_card_review":"\(hand?.isReview == true)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)","confirmed_hole_count":"\(confirmedHole.count)","presented_advice_state":analysis.presentedAdvice.state.rawValue,"displayed_move":analysis.decisionAdvice.kind?.rawValue ?? "none","displayed_provisional":String(analysis.decisionAdvice.provisional),
                                   "effective_position":analysis.effectivePosition.rawValue,"position_source":analysis.positionSource,
+                                  "displayed_retained":String(analysis.decisionAdvice.retained),"range_quote_priced":String(analysis.responseUsesQuotedPrice),"readable_wagers":"\(scan.table?.seats.filter { $0.betCents != nil }.count ?? 0)",
                                   "table_observed":"\(scan.table != nil)","table_confirmed":"\(analysis.tableConfirmed)","seats_read":"\(scan.table?.seats.count ?? 0)",
                                   "readable_stacks":"\(scan.table?.seats.filter { $0.stackCents != nil }.count ?? 0)","unclear_seats":"\(scan.table?.seats.filter { $0.activity == .unknown }.count ?? 0)",
                                   "pot_read":"\(scan.table?.potCents != nil)","call_read":"\(scan.table?.callCents != nil)","side_pots_detected":"\(scan.table?.sidePots ?? false)",

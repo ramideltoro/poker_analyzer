@@ -9,7 +9,7 @@ struct CutoffChartView: View {
     }
     var body: some View {
         VStack(alignment:.leading,spacing:6) {
-            Text("Cutoff · unopened cash pot").font(.subheadline.bold())
+            Text("Cutoff · 100 BB reference chart").font(.subheadline.bold())
             Text("Blue: reference open-raise · gray: fold · outline: your hand").font(.caption2).foregroundStyle(.secondary)
             Grid(horizontalSpacing:2,verticalSpacing:2) {
                 ForEach(ranks,id:\.self) { row in

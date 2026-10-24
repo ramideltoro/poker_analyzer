@@ -109,6 +109,9 @@ public final class TableStateDetector: @unchecked Sendable {
                 seats[nearest.0].betCents = TableMoney.cents(text.value)
             }
         }
+        if try readFocusedWagers(image,seats:&seats,hole:hole,centerX:centerX,centerY:centerY,tableArea:tableArea,excluding:excluding) {
+            issue="Focused and whole-table wager readings disagree; confirming fresh amounts."
+        }
         let board = CardGrouping.reviewBoard(cards,anchor:hole)?.map(\.card) ?? []
         let reveals = RevealedCards.associate(cards:cards,seats:seats,known:board+(heroVisible ? selected.hole.map(\.card) : []))
         for i in seats.indices { seats[i].revealedCards = reveals[i] }

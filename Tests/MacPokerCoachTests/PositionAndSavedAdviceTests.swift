@@ -19,7 +19,7 @@ final class PositionAndSavedAdviceTests: XCTestCase {
         context.position = .early; XCTAssertEqual(context.suggestion(hole:hole,table:t)?.kind,.fold)
         context.position = .button; XCTAssertEqual(context.suggestion(hole:hole,table:t)?.kind,.raise)
     }
-    func testOpeningRuleDoesNotExtendToUnknownRaisedLimpedShortOrContradictoryPots() {
+    func testOpeningRuleDoesNotExtendToUnknownRaisedLimpedTooShortOrContradictoryPots() {
         let hole=["9s","8s"].compactMap(Card.init), context=PreflopContext(position:.cutoff,situation:.firstIn,bigBlindCents:100)
         for mode in 0..<9 {
             var c=context, t=table()
@@ -28,7 +28,7 @@ final class PositionAndSavedAdviceTests: XCTestCase {
             case 1: c.situation = .limped
             case 2: c.situation = .raised
             case 3: c.bigBlindCents = nil
-            case 4: t.seats[0].stackCents=2000
+            case 4: t.seats[0].stackCents=1999 // Below the new 20 BB cash-policy floor.
             case 5: t.potCents=450
             case 6: t.seats[0].betCents=300
             case 7: t.controls?.canRaise=false

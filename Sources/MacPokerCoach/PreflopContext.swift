@@ -10,8 +10,10 @@ struct PreflopContext {
     var bigBlindCents: Int?
     var source="User-confirmed first-in context"
     var automaticSituation=false
+    var recognizedDealerID: Int?
     /// Deliberately limited first-in cash-game heuristic. Never applied to limped/raised pots.
     func suggestion(hole: [Card],table: TableObservation) -> ActionAdvice? {
+        if hole.count==2,Set(hole).count==2,let short=ShortCashPolicy.suggestion(hole:hole,table:table,context:self) { return short }
         guard hole.count==2, Set(hole).count==2, position != .unknown, situation == .firstIn,
               ![PokerPosition.smallBlind,.bigBlind].contains(position),
               let bb=bigBlindCents, bb>0, let hero=table.hero, hero.activity == .active,
@@ -56,13 +58,16 @@ struct PreflopSetup: View {
             Picker("Preflop action",selection:$analysis.preflopSituation) { ForEach(PreflopSituation.allCases,id:\.self) { Text($0.rawValue).tag($0) } }.disabled(analysis.currentHand == nil || analysis.isReview)
             HStack { Text("Big blind ($)"); TextField("e.g. 0.10",text:$analysis.bigBlindText).textFieldStyle(.roundedBorder) }
             Text("Detected big blind: \(analysis.recognizedBigBlind.map { String(format:"$%.2f",Double($0)/100) } ?? "unreadable") · prior action: \(analysis.effectiveSituation.rawValue)").font(.caption)
+            Text("20–49 BB cash policy: explicit local raise/fold ranges by position, including small blind. These are heuristic assumptions, not solver charts or tournament push/fold tables. Below 20 BB remains a provisional plan.").font(.caption)
+            if let range=ShortCashPolicy.range(analysis.effectivePosition) { Text("Short-stack \(analysis.effectivePosition.rawValue.lowercased()) opens: \(range.notation)").font(.caption).foregroundStyle(.secondary) }
             Picker("Raiser assumption",selection:$analysis.raiseRange) { ForEach(RaiseRangePreset.allCases,id:\.self) { Text($0.rawValue).tag($0) } }
             Text("Raise response: assumed \(analysis.raiseRange.range(reraised:false).notation); re-raise: \(analysis.raiseRange.range(reraised:true).notation). Other active players: \(OpponentRange.caller.notation). These are selectable scenario presets, not inferred player ranges.").font(.caption)
+            if let key=analysis.responseKey { Text("Active response ranges: \(key.ranges.map(\.notation).joined(separator:" | ")). This list includes any supported position/depth substitution.").font(.caption).foregroundStyle(DashboardStyle.cyan) }
             Text(analysis.raiseResponseResult.map { "Raise simulation: \($0.samples.formatted()) deals; 95% individual sampling bound ±\(String(format:"%.2f",$0.samplingBound*100)) pp. Range and realization uncertainty are separate." } ?? "Raise-response target: 100,000 separate deals; approximately ±0.43 pp individual 95% sampling bound. Range uncertainty is separate.").font(.caption).foregroundStyle(.secondary)
             Text("Position discounts use 90% of range equity in cutoff/button, 75% elsewhere, or 80% if unknown. These are uncalibrated realization scenarios; all-in calls use full range equity when future betting is closed. Decisions exclude rake and solved future play.").font(.caption).foregroundStyle(.secondary)
-            Text("First-in rules cover early/middle/hijack/cutoff/button at ≥50 BB effective, without antes or straddles. The cutoff chart includes 76s and 98s. Its source uses 100 BB examples and calls for opponent-dependent adjustments. Short/unreadable stacks produce a provisional plan. Choose a legal client raise size.").font(.caption)
+            Text("Deep first-in rules cover early/middle/hijack/cutoff/button at ≥50 BB effective. Separate 20–49 BB cash rules cover first-in position and small-blind opens. Both require standard blinds, no limpers/raises, readable prices and stacks. The 100 BB source chart below is retained for reference. Choose a legal client raise size.").font(.caption)
             CutoffChartView(hole:analysis.currentHand?.hole.map(\.card) ?? [])
-            Text("These are conservative cash-game heuristics, not solver solutions. A range-based response covers supported visible preflop raises; general limping and blind-defense charts are not implemented. A narrow postflop value-raise rule uses limped-pot context. Position does not change raw showdown equity; it changes how a hand can be played. Postflop dollar EV still excludes future bets, actual ranges and rake.").font(.caption).foregroundStyle(.secondary)
+            Text("Blind defense uses priced range scenarios. A confirmed Call control can price a covered non-all-in scenario while street wagers are unreadable; unknown wagers stay unknown. Balanced single-open ranges use the recognized raiser's position only when the blind pot reconciles exactly. General limped pots and solved future play remain unimplemented. Position does not change raw showdown equity. Actual ranges, future bets and rake remain uncertain.").font(.caption).foregroundStyle(.secondary)
             Link("Starting hands & position · PokerStars Learn",destination:URL(string:"https://www.pokerstars.com/poker/learn/lesson/poker-starting-hands/")!).font(.caption)
         }.fixedSize(horizontal:false,vertical:true).preferredColorScheme(.dark)
     }

@@ -13,6 +13,7 @@ import TableRecognition
     @Published private(set) var preflopEvidence=PreflopEvidence()
     @Published var raiseResponseResult: EquityResult?
     @Published var responseError: String?
+    @Published var responseUsesQuotedPrice=false
     var responseKey: RaiseResponseRequest.Key?
     var responseWorker: Task<EquityResult,Error>?
     var responseGeneration=UUID()
@@ -25,7 +26,7 @@ import TableRecognition
     @Published private(set) var recognizedBigBlind: Int?
     var preflopContext: PreflopContext {
         let prior=preflopSituation != .unknown ? "manual prior action" : effectiveSituation == .unknown ? "prior action unconfirmed" : "observed prior action"
-        return PreflopContext(position:effectivePosition,situation:effectiveSituation,bigBlindCents:effectiveBigBlind,source:positionSource+"; "+prior,automaticSituation:preflopSituation == .unknown)
+        return PreflopContext(position:effectivePosition,situation:effectiveSituation,bigBlindCents:effectiveBigBlind,source:positionSource+"; "+prior,automaticSituation:preflopSituation == .unknown,recognizedDealerID:recognizedPosition?.dealerID)
     }
     var showsLastAdvice: Bool {
         if current==nil, reading.confirmedHole.count==2,
@@ -126,7 +127,8 @@ import TableRecognition
             let retainedForecast = retained != nil || (next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code } && Set(previous.board.map(\.card)).isSubset(of:Set(next.board))) ? display.lastForecastAdvice : nil
             let shown=next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code } && Set(previous.board.map(\.card)).isSubset(of:Set(next.board)) ? display.lastShownAdvice : nil
             let shownHole=shown == nil ? [] : display.lastShownHole
-            display = AnalysisDisplay(); display.lastShownAdvice=shown; display.lastShownHole=shownHole; display.lastAdvice = retained; display.lastForecastAdvice = retainedForecast
+            let verified=shown == nil ? nil : display.lastVerifiedTurn
+            display = AnalysisDisplay(); display.lastVerifiedTurn=verified; display.lastShownAdvice=shown; display.lastShownHole=shownHole; display.lastAdvice = retained; display.lastForecastAdvice = retainedForecast
         }
         if let next, hand?.isReview != true, next.hole != contextHole {
             contextHole = next.hole; position = .unknown; preflopSituation = .unknown; preflopEvidence=PreflopEvidence()
@@ -340,6 +342,10 @@ import TableRecognition
             if live.kind != nil { next.lastAdvice = live; if live.basis=="RAISE RESPONSE", let value=raiseResponseResult { next.decisionEquity=value.equity } }
         }
         let shown=decisionAdvice
+        if let current,!current.isReview,actionControlsConfirmed,!shown.retained,shown.kind != nil,
+           let table,table.hero?.activity == .active,let call=table.callCents {
+            next.lastVerifiedTurn=AnalysisDisplay.VerifiedTurn(advice:shown,hole:Set(current.hole.map(\.card)),board:Set(current.board.map(\.card)),call:call)
+        }
         if shown.kind != nil {
             next.lastShownAdvice=shown
             let holes=current?.hole.map(\.card) ?? reading.confirmedHole.map(\.card)

@@ -118,8 +118,8 @@ final class AutomaticPositionTests: XCTestCase {
         XCTAssertEqual(m.decisionAdvice.kind,.raise); XCTAssertTrue(m.decisionAdvice.provisional)
         t=table(); for i in t.seats.indices { t.seats[i].stackCents=2000 }
         m.update(h,table:t); m.update(h,table:t)
-        XCTAssertEqual(m.decisionAdvice.kind,.raise); XCTAssertTrue(m.decisionAdvice.provisional)
-        XCTAssertTrue(m.decisionAdvice.reason.contains("short/unreadable"))
+        XCTAssertEqual(m.decisionAdvice.kind,.raise); XCTAssertFalse(m.decisionAdvice.provisional)
+        XCTAssertEqual(m.decisionAdvice.basis,"SHORT CASH OPEN")
         t.dealerSeatID=nil; m.update(h,table:t)
         XCTAssertEqual(m.effectivePosition,.unknown); XCTAssertTrue(m.positionSummary.contains("fallback"))
         m.reset()

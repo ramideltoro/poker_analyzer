@@ -8,9 +8,10 @@ struct CallThresholdPanel: View {
     @State private var preflopSetup = false
     private func money(_ v: Double?) -> String { v.map { String(format:"$%.2f",$0) } ?? "—" }
     private var price: DecisionPrice? {
+        if analysis.decisionAdvice.retained { return nil }
         if analysis.presentedAdvice.basis=="RAISE RESPONSE", let hand=analysis.currentHand, let table=analysis.responseTable,
            let q=analysis.raiseResponseResult?.equity,
-           let request=RaiseResponseRequest.make(hole:hand.hole.map(\.card),table:table,context:analysis.preflopContext,evidence:analysis.preflopEvidence,preset:analysis.raiseRange) {
+           let request=RaiseResponseRequest.make(hole:hand.hole.map(\.card),table:table,context:analysis.preflopContext,evidence:analysis.preflopEvidence,preset:analysis.raiseRange,allowQuotedPrice:!analysis.isPlanning && analysis.actionControlsConfirmed && analysis.tableConfirmed) {
             return try? DecisionPrice(equity:q,pot:Double(request.context.potCents)/100,call:Double(request.context.callCents)/100)
         }
         if analysis.isPlanning {
@@ -41,7 +42,7 @@ struct CallThresholdPanel: View {
         let tint = advice.kind == .fold ? DashboardStyle.loss : advice.kind == .raise ? DashboardStyle.cyan : DashboardStyle.accent
         VStack(alignment:.leading,spacing:large ? 6 : 3) {
             HStack {
-                Text(analysis.decisionIsHistory ? "LAST MOVE / PLAN" : analysis.isPlanning ? "BEFORE YOUR TURN" : "SUGGESTED ACTION").sectionLabel()
+                Text(analysis.decisionIsHistory ? "LAST MOVE / PLAN" : advice.retained ? "LAST CONFIRMED PLAN" : analysis.isPlanning ? "BEFORE YOUR TURN" : "SUGGESTED ACTION").sectionLabel()
                 Spacer()
                 Button("Assumptions") { preflopSetup = true }.font(.system(size:9)).buttonStyle(.plain).foregroundStyle(DashboardStyle.cyan)
                     .popover(isPresented:$preflopSetup) { ScrollView { PreflopSetup(analysis:analysis).padding(20) }.frame(width:450,height:600) }
@@ -52,9 +53,9 @@ struct CallThresholdPanel: View {
             HStack(alignment:.firstTextBaseline) {
                 Text(advice.kind?.label.uppercased() ?? "—").font(.system(size:advice.kind == nil ? (large ? 20 : 16) : (large ? 32 : 23),weight:.bold,design:.rounded)).foregroundStyle(advice.kind == nil ? .secondary : tint)
                     .lineLimit(1).minimumScaleFactor(0.7)
-                    .accessibilityLabel(advice.kind.map { "\(analysis.decisionIsHistory ? "Last move or plan" : "Suggested action"): \($0.label)" } ?? "\(advice.state.label). No suggested action available")
+                    .accessibilityLabel(advice.kind.map { "\(analysis.decisionIsHistory || advice.retained ? "Last move or plan" : "Suggested action"): \($0.label)" } ?? "\(advice.state.label). No suggested action available")
                 Spacer(minLength:4)
-                Text(analysis.decisionIsHistory ? "SAVED" : analysis.isPlanning ? "CONDITIONAL" : advice.provisional ? "ESTIMATE" : advice.marginal ? "LOW CONFIDENCE" : advice.kind != nil ? advice.basis : "STATUS")
+                Text(analysis.decisionIsHistory ? "SAVED" : advice.retained ? "READING UPDATE" : analysis.isPlanning ? "CONDITIONAL" : advice.provisional ? "ESTIMATE" : advice.marginal ? "LOW CONFIDENCE" : advice.kind != nil ? advice.basis : "STATUS")
                     .font(.system(size:8,weight:.semibold)).foregroundStyle(.secondary)
             }.frame(height:large ? 37 : 26)
             Text(advice.reason).font(.system(size:large ? 12 : 10)).foregroundStyle(.secondary).lineLimit(3)
@@ -69,7 +70,7 @@ struct CallThresholdPanel: View {
                 Text(price.map { "Call price: \(money($0.call)) · minimum pot \(money($0.minimumPot.map { max(0,ceil($0*100-1e-9)/100) }))" } ?? "Waiting for current decision inputs")
                     .font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8).frame(height:14)
             }
-            Text(analysis.positionSummary+" · "+(advice.provisional ? "Provisional plan; dollar EV needs current amounts." : advice.basis=="RAISE RESPONSE" ? "Range / realization scenario." : analysis.isPlanning ? analysis.forecast?.assumption ?? "Scanning continues." : "Reference strategy; future responses unknown."))
+            Text(advice.retained ? "Earlier plan from confirmed actions; current reading incomplete. History, not a new action or live price." : analysis.positionSummary+" · "+(advice.basis=="RAISE RESPONSE" ? (analysis.responseUsesQuotedPrice ? "Range scenario from confirmed Call; street wagers unreadable." : "Range / realization scenario.") : advice.provisional ? "Provisional plan; dollar EV needs current amounts." : analysis.isPlanning ? analysis.forecast?.assumption ?? "Scanning continues." : "Reference strategy; future responses unknown."))
                 .font(.system(size:8)).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.8).frame(height:12)
         }.padding(8).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height)
             .dashboardPanel().transaction { $0.animation = nil }

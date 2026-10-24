@@ -4,7 +4,7 @@ final class RangeEquityTests: XCTestCase {
     func c(_ text:String) -> [Card] { text.split(separator:" ").map { Card(String($0))! } }
     func testRangeComboCountsAndBlockersAreExplicit() throws {
         let deck=Suit.allCases.flatMap { s in (2...14).map { Card(rank:$0,suit:s) } }
-        let expected:[OpponentRange:Int]=[.random:1326,.caller:266,.tightRaise:50,.balancedRaise:128,.looseRaise:318,.tightReraise:16,.balancedReraise:34,.looseReraise:50]
+        let expected:[OpponentRange:Int]=[.random:1326,.caller:266,.tightRaise:50,.balancedRaise:128,.looseRaise:318,.tightReraise:16,.balancedReraise:34,.looseReraise:50,.shortEarlyOpen:156,.shortHijackOpen:246,.shortCutoffOpen:350,.shortButtonOpen:530,.shortSmallBlindOpen:614]
         for range in OpponentRange.allCases {
             var count=0
             for a in 0..<51 { for b in a+1..<52 { if range.contains([deck[a],deck[b]]) { count+=1 } } }

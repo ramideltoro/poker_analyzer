@@ -4,6 +4,13 @@ import TableRecognition
 
 /// Presentation-only history. These values never feed the live calculation.
 struct AnalysisDisplay {
+    struct VerifiedTurn {
+        var advice: ActionAdvice
+        var hole: Set<Card>
+        var board: Set<Card>
+        var call: Int
+    }
+    var lastVerifiedTurn: VerifiedTurn?
     var lastShownAdvice: ActionAdvice?
     var lastShownHole=[Card]()
     var lastAdvice: ActionAdvice?

@@ -29,20 +29,30 @@ enum DefaultDecision {
         let strong=pair && high>=10 || high==14 && low>=12 || suited && high>=12 && low>=11
         var preferred:SeatAction
         var why:String
+        var usesShortOpening=false
+        var openedFromReference=false
         if let board, board.isEmpty {
             let priceExceedsBlind=context.bigBlindCents.map { (price ?? 0)>$0 }==true
             let raised=table.map { RaiseResponseRequest.detectsRaise($0,context:context,evidence:evidence) }==true || context.situation == .raised || evidence.heroCalled || evidence.heroRaised || priceExceedsBlind
-            let alreadyInvested=(table?.hero?.betCents ?? 0)>0
+            let position=context.position == .unknown ? PokerPosition.hijack : context.position
+            let forced=context.bigBlindCents.map { context.position == .smallBlind ? $0/2 : context.position == .bigBlind ? $0 : 0 } ?? 0
+            let alreadyInvested=(table?.hero?.betCents ?? 0)>forced
             let extraPot=context.bigBlindCents.flatMap { bb in table?.potCents.map { $0>bb+bb/2 } }==true
             let observedCaller=table?.seats.contains(where:{ !$0.isHero && $0.action == .call })==true
             let assumeOpening = !raised && context.situation != .limped && !alreadyInvested && !extraPot && !observedCaller
-            let position=context.position == .unknown ? PokerPosition.hijack : context.position
-            let opening=PreflopContext.opens(hole:hole,position:position) ?? strong
+            var opening=PreflopContext.opens(hole:hole,position:position) ?? strong
+            if assumeOpening,let table,let bb=context.bigBlindCents,let depth=ShortCashPolicy.depth(table,bigBlind:bb),depth>=20,depth<50,
+               let range=ShortCashPolicy.range(context.position) {
+                usesShortOpening=true;opening=range.contains(hole)
+            }
             if premium { preferred = .raise; why="Premium starting pair: prefer a value raise using a legal client size." }
             else if free { preferred = .check; why="Checking keeps the hand for no additional chips." }
+            else if context.position == .bigBlind,price==nil,!raised {
+                preferred = .check;why="If no raise reaches you, take the free big-blind option. This is a conditional plan until the current Check / Call price is readable."
+            }
             else if assumeOpening && opening {
-                preferred = .raise
-                why="\(position == .cutoff ? "Fits Little's cutoff cash-game opening chart" : "Fits the default opening range"). \(context.situation == .firstIn ? "Folded to you" : "Assume an unopened pot")\(context.position == .unknown ? " and a hijack fallback" : " from \(context.position.rawValue.lowercased())"); choose a legal raise size."
+                preferred = .raise;openedFromReference=true
+                why="\(usesShortOpening ? "Fits the 20–49 BB \(position.rawValue.lowercased()) cash opening rule" : position == .cutoff ? "Fits Little's cutoff cash-game opening chart" : "Fits the default opening range"). \(context.situation == .firstIn ? "Folded to you" : "Assume an unopened pot")\(context.position == .unknown ? " and a hijack fallback" : " from \(context.position.rawValue.lowercased())"); choose a legal raise size."
             } else if strong { preferred = .call; why="Strong starting hand: default to continuing against a paid wager while the range/price analysis updates." }
             else {
                 let speculative=pair || suited && (high==14 || high-low<=2 && low>=5)
@@ -53,7 +63,7 @@ enum DefaultDecision {
             let assumeCheckedTo=free || (price==nil && table?.activeOpponents.contains(where:{ ($0.betCents ?? 0)>(table?.hero?.betCents ?? 0) }) != true)
             if assumeCheckedTo {
                 if f.valueHand && f.danger==nil { preferred = .bet; why="\(f.name): default to an unsized value bet when Bet is available. Use the client's legal sizing." }
-                else { preferred = .check; why="Checking is free\(f.danger.map { "; \($0)" } ?? ""). Keep the hand without adding chips." }
+                else { preferred = .check; why="\(free ? "Checking is free" : "If checked to you, check")\(f.danger.map { "; \($0)" } ?? ""). Keep the hand without adding chips." }
             } else {
                 let rank=Evaluator.evaluate(hole+board)
                 let personalPair=rank.category==1 && hole.contains { h in board.contains { $0.rank==h.rank } }
@@ -83,7 +93,7 @@ enum DefaultDecision {
         }
         let scope=legal==nil || !confirmedControls ? " Conditional on the client offering this action on your turn." : " Uses readable client actions."
         let seat=context.position == .unknown ? " Position unconfirmed; hijack fallback." : " Position: \(context.position.rawValue.lowercased()) (\(context.source))."
-        let depth = board?.isEmpty == true && context.position == .cutoff ? " 100 BB reference; short/unreadable depth is unverified." : ""
+        let depth = usesShortOpening ? " 20–49 BB local range; current opening conditions remain conditional." : openedFromReference && context.position == .cutoff ? " 100 BB reference; short/unreadable depth is unverified." : ""
         return ActionAdvice(title:selected.label.uppercased(),reason:why+seat+scope+depth+" Lower-confidence default; no verified sizing or full strategic EV.",kind:selected,marginal:true,basis:"DEFAULT PLAN",provisional:true)
     }
     private static func affordable(_ table:TableObservation?) -> Bool {
@@ -107,6 +117,15 @@ extension HandAnalysisModel {
         let matches=holes.isEmpty || Set(holes)==Set(display.lastShownHole)
         if decisionIsHistory && matches, let prior=display.lastShownAdvice { return prior }
         if let hand=currentHand, hand.isReview || table?.hero?.stackCents==0 || [.folded,.sittingOut,.waiting].contains(table?.hero?.activity ?? .unknown) { return showsLastAdvice && raw.kind != nil ? raw : ActionAdvice(title:"—",reason:"There is no current betting decision. Previous moves remain available when one was recorded.",kind:nil) }
+        let currentLegal=DefaultDecision.available(table,confirmed:true)
+        if automatic,(!actionControlsConfirmed || raw.kind==nil),let hand=currentHand,!hand.isReview,let prior=display.lastVerifiedTurn,
+           prior.hole==Set(holes),prior.board==Set(hand.board.map(\.card)),
+           table?.callCents==nil || table?.callCents==prior.call,
+           currentLegal==nil || currentLegal!.contains(prior.advice.kind ?? .fold) {
+            // A missing price is not a new paid wager or a fresh free Check. Retain
+            // the exact move/reason as labelled history until current inputs recover.
+            var held=prior.advice;held.retained=true;held.provisional=true;return held
+        }
         if let kind=raw.kind {
             let legal=DefaultDecision.available(table,confirmed:true)
             if legal==nil || legal!.contains(kind) {
