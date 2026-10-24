@@ -159,7 +159,7 @@ extension HandAnalysisModel {
         }
         if hand.isReview { return ActionAdvice(title:"REVIEW",reason:"Only saved cards are available after your cards disappeared. What-if calculations continue; there is no live action for these saved cards.",kind:nil,basis:"SAVED CARDS",availability:.savedHand) }
         if automatic, actionControlsConfirmed, let table,
-           let advice = ActionAdvice.immediate(hole:hand.hole.map(\.card),board:hand.board.map(\.card),table:table,confirmedSize:tableConfirmed,situation:preflopSituation,position:position) { return advice }
+           let advice = ActionAdvice.immediate(hole:hand.hole.map(\.card),board:hand.board.map(\.card),table:table,confirmedSize:tableConfirmed,situation:effectiveSituation,position:effectivePosition) { return advice }
         if automatic, table?.controls != nil, !actionControlsConfirmed {
             return ActionAdvice(title:"WAIT",reason:"Confirming your current Call / Check buttons across two readings. New cards, disappearing buttons or a changed call price immediately clear the old action.",kind:nil,availability:.controls)
         }
@@ -169,7 +169,7 @@ extension HandAnalysisModel {
                 return ActionAdvice(title:"WAIT",reason:"Confirming the changed preflop raise price and stacks across consecutive readings. Earlier preflop context is not required for this response.",kind:nil,availability:.amounts)
             }
             if tableConfirmed, let opening = preflopContext.suggestion(hole:hand.hole.map(\.card),table:table) { return opening }
-            if preflopSituation == .firstIn || position != .unknown {
+            if effectiveSituation == .firstIn || effectivePosition != .unknown {
                 return ActionAdvice(title:"WAIT",reason:"Opening rule needs a confirmed position, everyone folded, a readable big blind, standard unopened pot and ≥50 BB effective stacks. Limped, raised and short-stack pots need a separate strategy; call EV alone cannot decide them.",kind:nil,availability:.preflop)
             }
         }

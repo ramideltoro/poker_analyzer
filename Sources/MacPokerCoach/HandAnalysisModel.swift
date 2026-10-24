@@ -20,7 +20,13 @@ import TableRecognition
     var responseCacheOrder=[RaiseResponseRequest.Key]()
     let calculateResponse: CalculateResponse
     private var contextHole: [Card]?
-    var preflopContext: PreflopContext { PreflopContext(position:position,situation:preflopSituation,bigBlindCents:TableMoney.cents(bigBlindText,requireCurrency:false)) }
+    private var positionStabilizer=PositionStabilizer()
+    @Published private(set) var recognizedPosition: RecognizedPosition?
+    @Published private(set) var recognizedBigBlind: Int?
+    var preflopContext: PreflopContext {
+        let prior=preflopSituation != .unknown ? "manual prior action" : effectiveSituation == .unknown ? "prior action unconfirmed" : "observed prior action"
+        return PreflopContext(position:effectivePosition,situation:effectiveSituation,bigBlindCents:effectiveBigBlind,source:positionSource+"; "+prior,automaticSituation:preflopSituation == .unknown)
+    }
     var showsLastAdvice: Bool {
         if current==nil, reading.confirmedHole.count==2,
            Set(reading.confirmedHole.map(\.card)) != Set(display.hand?.hole.map(\.card) ?? []) { return false }
@@ -124,6 +130,7 @@ import TableRecognition
         }
         if let next, hand?.isReview != true, next.hole != contextHole {
             contextHole = next.hole; position = .unknown; preflopSituation = .unknown; preflopEvidence=PreflopEvidence()
+            positionStabilizer.reset()
         }
         if hand==nil || hand?.board.isEmpty != true { preflopEvidence=PreflopEvidence() }
         else if let preflop { preflopEvidence=PreflopEvidence(heroCalled:preflopEvidence.heroCalled || preflop.heroCalled,heroRaised:preflopEvidence.heroRaised || preflop.heroRaised,opponentRaises:max(preflopEvidence.opponentRaises,preflop.opponentRaises)) }
@@ -143,10 +150,16 @@ import TableRecognition
                 opponents = reading.activeOpponents.count
             }
         }
+        if hand?.isReview != true, hand != nil || self.reading.confirmedHole.count==2 {
+            positionStabilizer.update(reading)
+            recognizedPosition=positionStabilizer.recognized; recognizedBigBlind=positionStabilizer.bigBlind
+        } else if hand==nil {
+            positionStabilizer.reset(); recognizedPosition=nil; recognizedBigBlind=nil
+        }
         refreshAnalysis(); refreshForecast(isObservation:true); refreshRaiseResponse()
     }
     /// Stop, stale capture or permission loss must remove even presentation-only history.
-    func reset() { reading=CardReadiness(); update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil; contextHole = nil; position = .unknown; preflopSituation = .unknown; bigBlindText = "" }
+    func reset() { reading=CardReadiness(); update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil; contextHole = nil; positionStabilizer.reset(); recognizedPosition=nil; recognizedBigBlind=nil; position = .unknown; preflopSituation = .unknown; bigBlindText = "" }
     private func validOpponentCount(_ table: TableObservation) -> Bool {
         table.seats.filter(\.isHero).count == 1 && (2...9).contains(table.seats.count) &&
         table.seats.allSatisfy { $0.activity != .unknown } && (1...8).contains(table.activeOpponents.count)
@@ -195,7 +208,7 @@ import TableRecognition
     }
     private func refreshForecast(isObservation: Bool = false) {
         guard isPlanning, let hand=current, let table,
-              let next=TurnForecast.make(table,position:position,board:hand.board.map(\.card),bigBlindCents:preflopContext.bigBlindCents) else {
+              let next=TurnForecast.make(table,position:effectivePosition,board:hand.board.map(\.card),bigBlindCents:preflopContext.bigBlindCents) else {
             stopForecast(); forecast=nil; previousForecast=nil; forecastConfirmed=false; return
         }
         let stable=previousForecast.map { $0.assumedFoldIDs==next.assumedFoldIDs && $0.orderKnown==next.orderKnown && $0.table.agreesForAnalysis(with:next.table) }==true

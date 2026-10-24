@@ -47,7 +47,7 @@ struct RaiseResponseRequest {
         let reraised=evidence.heroRaised || evidence.opponentRaises>=2
         let range=preset.range(reraised:reraised)
         let ranges=[range]+Array(repeating:OpponentRange.caller,count:table.activeOpponents.count-1)
-        let source=evidence.heroCalled ? "After your tracked call" : evidence.heroRaised ? "After your tracked raise" : context.situation == .raised ? "User-confirmed raise" : evidence.opponentRaises>0 ? "Tracked opponent raise" : table.activeOpponents.contains(where:{ $0.action == .raise }) ? "Visible opponent Raise label" : context.bigBlindCents.map { highest>$0 }==true ? "Wager exceeds the configured big blind" : "Wager exceeds twice your committed chips (standard-blind assumption)"
+        let source=evidence.heroCalled ? "After your tracked call" : evidence.heroRaised ? "After your tracked raise" : context.situation == .raised ? (context.automaticSituation ? "Recognized preflop raise" : "User-confirmed raise") : evidence.opponentRaises>0 ? "Tracked opponent raise" : table.activeOpponents.contains(where:{ $0.action == .raise }) ? "Visible opponent Raise label" : context.bigBlindCents.map { highest>$0 }==true ? "Wager exceeds the configured big blind" : "Wager exceeds twice your committed chips (standard-blind assumption)"
         return RaiseResponseRequest(key:Key(hole:hole.sorted { $0.code<$1.code },ranges:ranges),context:priced,quotedCall:call,provenance:source,reraised:reraised,callClosesBetting:stack<=priced.callCents || table.activeOpponents.allSatisfy { $0.stackCents==0 })
     }
     func advice(result: EquityResult,position: PokerPosition) -> ActionAdvice {
@@ -77,7 +77,7 @@ extension HandAnalysisModel {
         guard responseKey==request.key, let value=raiseResponseResult else {
             return ActionAdvice(title:"WAIT",reason:responseError ?? "Calculating your raise response against the displayed range assumptions. Your earlier call is sunk; no preflop-context entry is required.",kind:nil,availability:.calculating)
         }
-        let advice=request.advice(result:value,position:position)
+        let advice=request.advice(result:value,position:effectivePosition)
         guard advice.kind == .call ? table.controls?.canCall==true : (table.controls?.canFold==true || table.controls?.canCall==true && (table.callCents ?? 0)>0) else {
             return ActionAdvice(title:"WAIT",reason:"Confirming a legal Call / Fold control for this raised price.",kind:nil,availability:.controls)
         }

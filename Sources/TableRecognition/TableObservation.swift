@@ -41,11 +41,15 @@ public struct TableObservation: Sendable, Equatable {
     public var boardCards: [Card]
     public var controls: TableControls?
     public var trackingUsable: Bool
-    public init(potCents: Int?,callCents: Int?,seats: [TableSeat],sidePots: Bool = false,issue: String? = nil,boardCards: [Card] = [],controls: TableControls? = nil,trackingUsable: Bool? = nil) {
+    /// Current-frame visual evidence. Never inferred from player numbers or remaining card backs.
+    public var dealerSeatID: Int?
+    public var bigBlindCents: Int?
+    public init(potCents: Int?,callCents: Int?,seats: [TableSeat],sidePots: Bool = false,issue: String? = nil,boardCards: [Card] = [],controls: TableControls? = nil,trackingUsable: Bool? = nil,dealerSeatID: Int? = nil,bigBlindCents: Int? = nil) {
         self.potCents = potCents; self.callCents = callCents; self.seats = seats; self.sidePots = sidePots; self.issue = issue
         self.boardCards = boardCards
         self.controls = controls
         self.trackingUsable = trackingUsable ?? (issue == nil)
+        self.dealerSeatID = dealerSeatID; self.bigBlindCents = bigBlindCents
     }
     public var hero: TableSeat? { seats.first(where: \.isHero) }
     public var activeOpponents: [TableSeat] { seats.filter { !$0.isHero && $0.activity == .active } }

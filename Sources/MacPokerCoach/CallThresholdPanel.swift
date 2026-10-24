@@ -69,7 +69,7 @@ struct CallThresholdPanel: View {
                 Text(price.map { "Call price: \(money($0.call)) · minimum pot \(money($0.minimumPot.map { max(0,ceil($0*100-1e-9)/100) }))" } ?? "Waiting for current decision inputs")
                     .font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8).frame(height:14)
             }
-            Text(advice.provisional ? "Provisional plan · verify current client actions; dollar EV is not filled from defaults." : advice.basis=="RAISE RESPONSE" ? "Range response includes a realization scenario; headline equity / EV use random hands." : analysis.isPlanning ? analysis.forecast?.assumption ?? "Assumptions pending; scanning continues." : "Value / price heuristics · actual calling ranges and future responses unknown.")
+            Text(analysis.positionSummary+" · "+(advice.provisional ? "Provisional plan; dollar EV needs current amounts." : advice.basis=="RAISE RESPONSE" ? "Range / realization scenario." : analysis.isPlanning ? analysis.forecast?.assumption ?? "Scanning continues." : "Reference strategy; future responses unknown."))
                 .font(.system(size:8)).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.8).frame(height:12)
         }.padding(8).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height)
             .dashboardPanel().transaction { $0.animation = nil }

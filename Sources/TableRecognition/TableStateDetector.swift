@@ -116,7 +116,23 @@ public final class TableStateDetector: @unchecked Sendable {
             for i in seats.indices { seats[i].isActing = seats[i].isHero }
         }
         let tracking = !blocked && seats.filter(\.isHero).count == 1 && (2...9).contains(seats.count)
-        return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue,boardCards:board,controls:controls,trackingUsable:tracking)
+        let dealer = tracking ? DealerButtonDetector.seatID(image,seats:seats,excluding:excluding) : nil
+        // The stakes header may be outside the hero-anchored OCR region. This bounded pass
+        // never reads a lobby/sidebar amount as a blind, and is optional for cropped fixtures.
+        let localBlinds=texts.filter { $0.confidence>=0.95 }.compactMap { Self.bigBlind($0.value) }
+        let headerArea=CGRect(x:0,y:0,width:1,height:min(1,max(0,potY)))
+        let header=localBlinds.isEmpty ? try recognize(image,region:headerArea).filter { text in !excluding.contains { $0.rect.intersects(text.bounds.rect) } } : []
+        let blinds=localBlinds+header.filter { $0.confidence>=0.95 }.compactMap { Self.bigBlind($0.value) }
+        let unique=Set(blinds)
+        return TableObservation(potCents:pot,callCents:call,seats:seats,sidePots:side,issue:issue,boardCards:board,controls:controls,trackingUsable:tracking,dealerSeatID:dealer,bigBlindCents:unique.count==1 ? unique.first : nil)
+    }
+    static func bigBlind(_ value: String) -> Int? {
+        let pattern=#"^(\$[0-9]{1,6}(?:\.[0-9]{2})?)/(\$[0-9]{1,6}(?:\.[0-9]{2})?)\s+No Limit Hold['’]em$"#
+        let regex=try! NSRegularExpression(pattern:pattern,options:.caseInsensitive)
+        let s=value.trimmingCharacters(in:.whitespacesAndNewlines),range=NSRange(s.startIndex...,in:s)
+        guard let m=regex.firstMatch(in:s,range:range), let a=Range(m.range(at:1),in:s),let b=Range(m.range(at:2),in:s),
+              let sb=TableMoney.cents(String(s[a])),let bb=TableMoney.cents(String(s[b])),sb>0,bb==sb*2 else { return nil }
+        return bb
     }
     /// A thin neutral timer track below a seat; broad status strips and text are rejected.
     func hasTurnBar(_ image: CGImage,panel: UnitRect) -> Bool {
