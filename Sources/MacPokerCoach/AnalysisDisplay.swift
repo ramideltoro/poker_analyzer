@@ -4,6 +4,8 @@ import TableRecognition
 
 /// Presentation-only history. These values never feed the live calculation.
 struct AnalysisDisplay {
+    var lastShownAdvice: ActionAdvice?
+    var lastShownHole=[Card]()
     var lastAdvice: ActionAdvice?
     var lastForecastAdvice: ActionAdvice?
     var hand: LiveHand?

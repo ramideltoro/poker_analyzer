@@ -78,7 +78,7 @@ extension HandAnalysisModel {
             return ActionAdvice(title:"WAIT",reason:responseError ?? "Calculating your raise response against the displayed range assumptions. Your earlier call is sunk; no preflop-context entry is required.",kind:nil,availability:.calculating)
         }
         let advice=request.advice(result:value,position:position)
-        guard advice.kind == .call ? table.controls?.canCall==true : table.controls?.canFold==true else {
+        guard advice.kind == .call ? table.controls?.canCall==true : (table.controls?.canFold==true || table.controls?.canCall==true && (table.callCents ?? 0)>0) else {
             return ActionAdvice(title:"WAIT",reason:"Confirming a legal Call / Fold control for this raised price.",kind:nil,availability:.controls)
         }
         return advice

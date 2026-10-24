@@ -99,7 +99,7 @@ import TableRecognition
         try await Task.sleep(nanoseconds:150_000_000)
         XCTAssertNil(m.raiseResponseResult); XCTAssertNil(m.responseKey); XCTAssertEqual(m.actionAdvice.state,.cards)
     }
-    func testRangeChoiceChangesAssumptionAndIllegalFoldOrShortSidePotIsSuppressed() async throws {
+    func testRangeChoiceImpliedFoldLegalityAndShortSidePotSuppression() async throws {
         let m=model(q:0.05), h=HandAnalysisTests().hand(), e=PreflopEvidence(heroCalled:true)
         var t=table()
         m.update(h,table:t,preflop:e); m.update(h,table:t,preflop:e); try await settle(m)
@@ -107,7 +107,7 @@ import TableRecognition
         m.raiseRange = .tight; try await settle(m)
         XCTAssertEqual(m.responseKey?.ranges.first,.tightRaise)
         t.controls?.canFold=false; m.update(h,table:t,preflop:e); m.update(h,table:t,preflop:e); try await settle(m)
-        XCTAssertNil(m.actionAdvice.kind); XCTAssertEqual(m.actionAdvice.state,.controls)
+        XCTAssertEqual(m.actionAdvice.kind,.fold,"Facing a paid Call also permits folding in standard Hold’em")
         t=table(); t.seats[1].stackCents=50
         m.update(h,table:t,preflop:e); m.update(h,table:t,preflop:e)
         XCTAssertNil(m.actionAdvice.kind); XCTAssertEqual(m.actionAdvice.state,.amounts)

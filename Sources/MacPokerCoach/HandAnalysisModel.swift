@@ -57,6 +57,7 @@ import TableRecognition
     @Published private(set) var calculating = false
     @Published private(set) var error: String?
     @Published private(set) var automatic = true
+    @Published private(set) var planningTable: TableObservation?
     @Published private(set) var table: TableObservation?
     @Published private(set) var tableConfirmed = false
     @Published private(set) var actionControlsConfirmed = false
@@ -105,7 +106,7 @@ import TableRecognition
     func update(_ hand: LiveHand?,table reading: TableObservation? = nil,recognition: CardReadiness? = nil,preflop: PreflopEvidence? = nil) {
         updating = true
         defer { updating = false; refreshDisplay() }
-        current = hand
+        current = hand; planningTable=reading
         if let recognition { self.reading=recognition }
         if let hand {
             let detailKey = CardsKey(hole:hand.hole.map(\.card),board:hand.board.map(\.card))
@@ -117,7 +118,9 @@ import TableRecognition
            next != CardsKey(hole:previous.hole.map(\.card).sorted { $0.code < $1.code },board:previous.board.map(\.card).sorted { $0.code < $1.code }) {
             let retained = next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code } && Set(previous.board.map(\.card)).isSubset(of:Set(next.board)) ? display.lastAdvice : nil
             let retainedForecast = retained != nil || (next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code } && Set(previous.board.map(\.card)).isSubset(of:Set(next.board))) ? display.lastForecastAdvice : nil
-            display = AnalysisDisplay(); display.lastAdvice = retained; display.lastForecastAdvice = retainedForecast
+            let shown=next.hole == previous.hole.map(\.card).sorted { $0.code < $1.code } && Set(previous.board.map(\.card)).isSubset(of:Set(next.board)) ? display.lastShownAdvice : nil
+            let shownHole=shown == nil ? [] : display.lastShownHole
+            display = AnalysisDisplay(); display.lastShownAdvice=shown; display.lastShownHole=shownHole; display.lastAdvice = retained; display.lastForecastAdvice = retainedForecast
         }
         if let next, hand?.isReview != true, next.hole != contextHole {
             contextHole = next.hole; position = .unknown; preflopSituation = .unknown; preflopEvidence=PreflopEvidence()
@@ -322,6 +325,12 @@ import TableRecognition
             if isPlanning, forecastConfirmed { let plan=presentedAdvice; if plan.kind != nil { next.lastForecastAdvice=plan } }
             let live = actionAdvice
             if live.kind != nil { next.lastAdvice = live; if live.basis=="RAISE RESPONSE", let value=raiseResponseResult { next.decisionEquity=value.equity } }
+        }
+        let shown=decisionAdvice
+        if shown.kind != nil {
+            next.lastShownAdvice=shown
+            let holes=current?.hole.map(\.card) ?? reading.confirmedHole.map(\.card)
+            if !holes.isEmpty { next.lastShownHole=holes }
         }
         display = next; onDecisionUpdate?()
     }

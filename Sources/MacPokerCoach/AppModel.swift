@@ -131,7 +131,7 @@ import Combine
         } else { noCardsSince = nil }
         recordHandTrace()
         let advice = analysis.actionAdvice
-        log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","saved_card_review":"\(hand?.isReview == true)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)","confirmed_hole_count":"\(confirmedHole.count)","presented_advice_state":analysis.presentedAdvice.state.rawValue,
+        log.write("reader_status",["message":status,"confirmed_hand":"\(hand != nil)","saved_card_review":"\(hand?.isReview == true)","completed_scans":"\(scanned)","layout_locked":"\(stabilizer.hasLayout)","confirmed_hole_count":"\(confirmedHole.count)","presented_advice_state":analysis.presentedAdvice.state.rawValue,"displayed_move":analysis.decisionAdvice.kind?.rawValue ?? "none","displayed_provisional":String(analysis.decisionAdvice.provisional),
                                   "table_observed":"\(scan.table != nil)","table_confirmed":"\(analysis.tableConfirmed)","seats_read":"\(scan.table?.seats.count ?? 0)",
                                   "readable_stacks":"\(scan.table?.seats.filter { $0.stackCents != nil }.count ?? 0)","unclear_seats":"\(scan.table?.seats.filter { $0.activity == .unknown }.count ?? 0)",
                                   "pot_read":"\(scan.table?.potCents != nil)","call_read":"\(scan.table?.callCents != nil)","side_pots_detected":"\(scan.table?.sidePots ?? false)",

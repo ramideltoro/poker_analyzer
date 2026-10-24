@@ -36,25 +36,25 @@ struct CallThresholdPanel: View {
         return String(format:"%.1f ×",Double(effective)/Double(context.potCents))
     }
     var body: some View {
-        let advice = analysis.presentedAdvice
+        let advice = analysis.decisionAdvice
         let large = height >= 210
         let tint = advice.kind == .fold ? DashboardStyle.loss : advice.kind == .raise ? DashboardStyle.cyan : DashboardStyle.accent
         VStack(alignment:.leading,spacing:large ? 6 : 3) {
             HStack {
-                Text(analysis.showsLastForecast ? "LAST FORECAST" : analysis.showsLastAdvice ? "LAST SUGGESTION" : analysis.isPlanning ? "BEFORE YOUR TURN" : advice.kind == nil ? "DECISION STATUS" : "SUGGESTED ACTION").sectionLabel()
+                Text(analysis.decisionIsHistory ? "LAST MOVE / PLAN" : analysis.isPlanning ? "BEFORE YOUR TURN" : "SUGGESTED ACTION").sectionLabel()
                 Spacer()
-                Button("Position / ranges") { preflopSetup = true }.font(.system(size:9)).buttonStyle(.plain).foregroundStyle(DashboardStyle.cyan)
+                Button("Assumptions") { preflopSetup = true }.font(.system(size:9)).buttonStyle(.plain).foregroundStyle(DashboardStyle.cyan)
                     .popover(isPresented:$preflopSetup) { ScrollView { PreflopSetup(analysis:analysis).padding(20) }.frame(width:450,height:600) }
                 Button { scenarios = true } label: { Image(systemName:"info.circle") }.buttonStyle(.plain)
                     .help("Decision assumptions and raise scenarios")
                     .popover(isPresented:$scenarios,arrowEdge:.trailing) { DecisionScenarios(analysis:analysis).padding(20).frame(width:470) }
             }.frame(height:12)
             HStack(alignment:.firstTextBaseline) {
-                Text(advice.kind?.label.uppercased() ?? advice.state.label).font(.system(size:advice.kind == nil ? (large ? 20 : 16) : (large ? 32 : 23),weight:.bold,design:.rounded)).foregroundStyle(advice.kind == nil ? .secondary : tint)
+                Text(advice.kind?.label.uppercased() ?? "—").font(.system(size:advice.kind == nil ? (large ? 20 : 16) : (large ? 32 : 23),weight:.bold,design:.rounded)).foregroundStyle(advice.kind == nil ? .secondary : tint)
                     .lineLimit(1).minimumScaleFactor(0.7)
-                    .accessibilityLabel(advice.kind.map { "\(analysis.showsLastAdvice ? "Last suggestion" : "Suggested action"): \($0.label)" } ?? "\(advice.state.label). No suggested action available")
+                    .accessibilityLabel(advice.kind.map { "\(analysis.decisionIsHistory ? "Last move or plan" : "Suggested action"): \($0.label)" } ?? "\(advice.state.label). No suggested action available")
                 Spacer(minLength:4)
-                Text(analysis.isPlanning ? "CONDITIONAL" : advice.marginal ? "LOW CONFIDENCE" : advice.kind != nil ? advice.basis : "STATUS")
+                Text(analysis.decisionIsHistory ? "SAVED" : analysis.isPlanning ? "CONDITIONAL" : advice.provisional ? "ESTIMATE" : advice.marginal ? "LOW CONFIDENCE" : advice.kind != nil ? advice.basis : "STATUS")
                     .font(.system(size:8,weight:.semibold)).foregroundStyle(.secondary)
             }.frame(height:large ? 37 : 26)
             Text(advice.reason).font(.system(size:large ? 12 : 10)).foregroundStyle(.secondary).lineLimit(3)
@@ -69,7 +69,7 @@ struct CallThresholdPanel: View {
                 Text(price.map { "Call price: \(money($0.call)) · minimum pot \(money($0.minimumPot.map { max(0,ceil($0*100-1e-9)/100) }))" } ?? "Waiting for current decision inputs")
                     .font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8).frame(height:14)
             }
-            Text(advice.basis=="RAISE RESPONSE" ? "Range response includes a realization scenario; headline equity / EV use random hands." : analysis.isPlanning ? analysis.forecast?.assumption ?? "Assumptions pending; scanning continues." : "Value / price heuristics · actual calling ranges and future responses unknown.")
+            Text(advice.provisional ? "Provisional plan · verify current client actions; dollar EV is not filled from defaults." : advice.basis=="RAISE RESPONSE" ? "Range response includes a realization scenario; headline equity / EV use random hands." : analysis.isPlanning ? analysis.forecast?.assumption ?? "Assumptions pending; scanning continues." : "Value / price heuristics · actual calling ranges and future responses unknown.")
                 .font(.system(size:8)).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.8).frame(height:12)
         }.padding(8).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height)
             .dashboardPanel().transaction { $0.animation = nil }

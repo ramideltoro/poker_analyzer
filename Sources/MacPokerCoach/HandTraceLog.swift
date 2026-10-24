@@ -30,7 +30,7 @@ import TableRecognition
             if hole != priorHole || (!hand.isReview && board.isEmpty && !priorBoard.isEmpty) { handID=UUID() }
             priorHole=hole; priorBoard=board
         }
-        let advice=analysis.presentedAdvice, forecast=analysis.forecast
+        let advice=analysis.decisionAdvice, forecast=analysis.forecast
         var fields:[String:String]=[
             "hand_id":handID.uuidString,
             "app_version":Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development",
@@ -56,8 +56,8 @@ import TableRecognition
             "observed_controls":observed?.controls.map { "fold=\($0.canFold),check=\($0.canCheck),call=\($0.canCall),bet=\($0.canBet),raise=\($0.canRaise),raise_to=\($0.raiseToCents.map(String.init) ?? "unknown")" } ?? "none",
             "live_action":analysis.actionAdvice.kind?.rawValue ?? "none",
             "displayed_action":advice.kind?.rawValue ?? "none","displayed_reason":advice.reason,
-            "displayed_basis":advice.basis,
-            "display_mode":analysis.showsLastForecast ? "last_forecast" : analysis.showsLastAdvice ? "last_suggestion" : analysis.isPlanning ? "forecast" : "live_or_waiting",
+            "displayed_basis":advice.basis,"displayed_provisional":String(advice.provisional),"displayed_historical":String(analysis.decisionIsHistory),
+            "display_mode":analysis.decisionIsHistory ? "last_displayed_move_or_plan" : advice.basis=="DEFAULT PLAN" ? "default_plan" : analysis.isPlanning ? "forecast" : "live_or_waiting",
             "equity_current":"\(analysis.equityIsCurrent)",
             "visible_player_equity":analysis.result.map { String($0.equity) } ?? "unavailable",
             "equity_samples":analysis.result.map { String($0.samples) } ?? "0",

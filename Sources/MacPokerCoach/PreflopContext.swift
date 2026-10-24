@@ -19,6 +19,15 @@ struct PreflopContext {
               pot >= bb, pot <= bb*2, // standard SB/BB, no antes/straddles or limpers
               table.seats.compactMap(\.betCents).allSatisfy({ $0<=bb }),
               !table.activeOpponents.isEmpty, table.activeOpponents.allSatisfy({ ($0.stackCents ?? 0)>=bb*50 && $0.revealedCards.isEmpty }) else { return nil }
+        guard let open=Self.opens(hole:hole,position:position) else { return nil }
+        guard open || table.controls?.canFold == true else { return nil }
+        let name=HandDetails.startingClass(hole) ?? "This hand"
+        return ActionAdvice(title:open ? "RAISE" : "FOLD",
+            reason:"\(name), \(position.rawValue.lowercased()), folded to you: \(open ? "open-raise; choose a legal size on the table" : "outside this conservative opening range"). User-confirmed first-in context, ≥50 BB effective. Cash-game heuristic; not solver EV.",
+            kind:open ? .raise : .fold,basis:"FIRST-IN RULE")
+    }
+    static func opens(hole:[Card],position:PokerPosition) -> Bool? {
+        guard hole.count==2, Set(hole).count==2 else { return nil }
         let sorted=hole.sorted { $0.rank>$1.rank }, h=sorted[0].rank, l=sorted[1].rank
         let suited=sorted[0].suit==sorted[1].suit, pair=h==l
         let open: Bool
@@ -30,11 +39,7 @@ struct PreflopContext {
         case .button: open = pair || (suited ? h==14 || h==13 || (h==12 && l>=6) || (h>=10 && l>=7) || (h-l<=2 && l>=4) : h==14 || (h==13 && l>=9) || (h>=10 && l>=9))
         default: return nil
         }
-        guard open || table.controls?.canFold == true else { return nil }
-        let name=HandDetails.startingClass(hole) ?? "This hand"
-        return ActionAdvice(title:open ? "RAISE" : "FOLD",
-            reason:"\(name), \(position.rawValue.lowercased()), folded to you: \(open ? "open-raise; choose a legal size on the table" : "outside this conservative opening range"). User-confirmed first-in context, ≥50 BB effective. Cash-game heuristic; not solver EV.",
-            kind:open ? .raise : .fold,basis:"FIRST-IN RULE")
+        return open
     }
 }
 
@@ -43,8 +48,8 @@ struct PreflopSetup: View {
     @ObservedObject var analysis: HandAnalysisModel
     var body: some View {
         VStack(alignment:.leading,spacing:12) {
-            Text("Position & pot context").font(.headline)
-            Text("Confirm for this hand. Position and prior action clear on a new detected hand; the big blind stays until capture resets.").font(.caption).foregroundStyle(.secondary)
+            Text("Optional assumptions").font(.headline)
+            Text("Optional overrides. Without them, the move display uses automatic defaults; a neutral hijack opening range covers unknown position. Price-based EV still needs readable amounts.").font(.caption).foregroundStyle(.secondary)
             Picker("Your position",selection:$analysis.position) { ForEach(PokerPosition.allCases,id:\.self) { Text($0.rawValue).tag($0) } }.disabled(analysis.currentHand == nil || analysis.isReview)
             Picker("Preflop action",selection:$analysis.preflopSituation) { ForEach(PreflopSituation.allCases,id:\.self) { Text($0.rawValue).tag($0) } }.disabled(analysis.currentHand == nil || analysis.isReview)
             HStack { Text("Big blind ($)"); TextField("e.g. 0.10",text:$analysis.bigBlindText).textFieldStyle(.roundedBorder) }
