@@ -1,6 +1,11 @@
-# Live Card Reader · 0.20.0
+# Live Card Reader · 0.21.0
 
-Continuously scans the Safari window (recommended) or monitor you select and automatically looks for visible playing-card faces. It displays your detected hole cards, community cards, current combination, local showdown equity and a simplified dollar EV for calling. It automatically reads the current pot, Call/Check controls, occupied players’ remaining stacks and visible card backs. There is one dashboard with Start/Stop, Show logs, Play history and an optional manual-input override. Shown opponent hands stay in memory for the current table; your own observations and measured chip intervals are saved locally. No browser integration or automated betting.
+Continuously scans the Safari window (recommended) or monitor you select and automatically looks for visible playing-card faces. It displays your detected hole cards, community cards, current combination, local showdown equity and a simplified dollar EV for calling. It automatically reads the current pot, Call/Check controls, occupied players’ remaining stacks and visible card backs. The Table, My play and GTO solver tabs share Start/Stop, Show logs, Play history and an optional manual-input override. Shown opponent hands stay in memory for the current table; your own observations and measured chip intervals are saved locally. No browser integration or automated betting.
+
+## Local GTO solver
+
+Version 0.21 adds a native **GTO solver** workspace with heads-up postflop action mixes, sizing, EV, editable ranges/rake and measured convergence. Supported converged snapshots can drive the live suggestion; preflop/multiway remain heuristic estimates. See [GTO setup and limits](docs/GTO_SOLVER.md) and [helper source/build details](Solver/README.md). Building the app now also requires Rust; engine/dependency sources are vendored for offline builds.
+
 
 ## Wagers, short stacks and stable decisions
 
@@ -123,7 +128,7 @@ Money results use stable **preflop stack + visible current bet** checkpoints on 
 
 
 
-For a fresh checkout, run `bash scripts/build-app.sh` first. The generated app is in `dist/Live Card Reader.app`; build outputs are excluded from Git. This project requires an Apple silicon Mac with macOS 15.2+ and Xcode installed.
+For a fresh checkout, run `bash scripts/build-app.sh` first. The generated app is in `dist/Live Card Reader.app`; build outputs are excluded from Git. This project requires an Apple silicon Mac with macOS 15.2+ Xcode and Rust installed.
 
 1. Open `dist/Live Card Reader.app` on this Apple silicon Mac (macOS 15.2+).
 2. Click **Start**, then choose the **Safari poker window** (recommended), or the monitor containing it in Apple's screen-sharing picker. Complete any macOS screen-recording permission prompt.
@@ -176,13 +181,13 @@ Version 0.15.0 includes PH Evaluator lookup tables, an aggregate of the download
 
 Version 0.5.1 adds the supplied artwork's diamond silhouette, completing all four suit references. In the 7:20:45 PM screenshot, the previous version recognized the three spades on the board but rejected both hole-card diamonds because their suit matches were ambiguous. The updated reader detects 9-diamonds/5-diamonds and exactly 6-spades/4-spades/Q-spades at the original resolution and at 3840×2160, 2560×1440 and 1920×1080 with small pixel offsets. The previous A-clubs/J-hearts flop and Q-clubs/5-clubs crop also still pass. Acceptance thresholds are unchanged. These are image-replay checks; other live hands still need validation.
 
-Quit and reopen the app after updating; check **v0.20.0** at the bottom. Start screen sharing, leave the table visible for 10–15 seconds, then choose **Show logs → General diagnostics**. Finder selects this launch's `.jsonl` file. Attach that file for diagnosis. It is in `~/Library/Application Support/LiveCardReader/Logs/`.
+Quit and reopen the app after updating; check **v0.21.0** at the bottom. Start screen sharing, leave the table visible for 10–15 seconds, then choose **Show logs → General diagnostics**. Finder selects this launch's `.jsonl` file. Attach that file for diagnosis. It is in `~/Library/Application Support/LiveCardReader/Logs/`.
 
 Logs contain app/build/OS version, picker and permission-preflight events, capture errors, stream status codes, input dimensions, hint counts and accepted-face rectangles, received-frame counts, scan duration and frame age, exclusion coverage, candidate counts, rank/suit match scores and rejection categories. Table diagnostics add field-presence flags, detected/readable seat counts, confirmation state and generic incomplete reasons; they exclude amounts and recognized text. Per-candidate details record the rectangle, crop method, numeric match scores/margins and rejection stage, without predicted ranks or suits. The global permission preflight is diagnostic only; picker-authorized capture can work even when the global permission flag is false. Rejection counts describe attempts, which can include multiple proposals for the same shape.
 
 ## Repeated screen-recording permission dialog
 
-The v0.4.1 logs showed successful `capture_started` events followed immediately by `snapshot_error` code `-3801` (TCC permission denied). The extra screenshot request then stopped the approved stream. Version 0.4.2 removed that request, and the supplied v0.4.2 log confirms 82 incoming frames and completed scans without that error. Quit the old app completely and open `dist/Live Card Reader.app`; verify **v0.20.0** before clicking Start. Selecting a source in Apple's sharing picker for each new session is expected.
+The v0.4.1 logs showed successful `capture_started` events followed immediately by `snapshot_error` code `-3801` (TCC permission denied). The extra screenshot request then stopped the approved stream. Version 0.4.2 removed that request, and the supplied v0.4.2 log confirms 82 incoming frames and completed scans without that error. Quit the old app completely and open `dist/Live Card Reader.app`; verify **v0.21.0** before clicking Start. Selecting a source in Apple's sharing picker for each new session is expected.
 
 This development build is ad-hoc signed. Rebuilding changes its code identity, so an existing System Settings permission may refer to an earlier build. If macOS still explicitly requests global screen-recording access, remove the old Live Card Reader entry in System Settings → Privacy & Security → Screen & System Audio Recording, add the exact current app from `dist`, enable it and quit/reopen the app. Do not reset permissions for unrelated apps. Apple's explanation of development signing and privacy authorization is at https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements.
 

@@ -20,6 +20,8 @@ struct RootView: View {
                 if page == 0 {
                     HandAnalysisView(analysis:analysis,tracking:tracking,height:layout.analysis)
                     cardsDock(height:layout.cards).frame(height:layout.cards)
+                } else if page == 2 {
+                    GTOSolverView(solver:analysis.solver).frame(height:layout.analysis+layout.cards+layout.gap)
                 } else {
                     PersonalStatisticsView(tracking:tracking,height:layout.analysis+layout.cards+layout.gap,showHistory:{ historyTab = 1; showingHistory = true })
                 }
@@ -38,7 +40,7 @@ struct RootView: View {
                 Circle().fill(capture.choosing ? .orange : capture.running ? DashboardStyle.accent : .gray).frame(width:5,height:5)
                 Text(capture.choosing ? "SELECTING" : capture.running ? (capture.windowCapture ? "WINDOW" : "MONITOR") : "STOPPED").font(.system(size:8,weight:.semibold)).tracking(0.7)
             }.padding(.horizontal,8).padding(.vertical,5).background(Color.white.opacity(0.04),in:Capsule())
-            Picker("Page",selection:$page) { Text("Live table").tag(0); Text("My statistics").tag(1) }.pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(width:190)
+            Picker("Page",selection:$page) { Text("Table").tag(0); Text("My play").tag(1); Text("GTO solver").tag(2) }.pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(width:235)
             Spacer(minLength:8)
             Toggle("Auto table",isOn:Binding(get:{ analysis.automatic },set:{ analysis.setAutomatic($0) }))
                 .toggleStyle(.switch).tint(DashboardStyle.accent).controlSize(.mini).font(.system(size:11)).fixedSize().help("Read pot, stacks and opponents automatically. Turn off for manual inputs.")

@@ -1,3 +1,17 @@
+# Live Card Reader 0.21.0 verification
+
+This release integrates the pinned b-inary postflop-solver engine as a separate arm64 Rust helper, with native SwiftUI setup/results, editable OOP/IP ranges and rake, exact first-bet tree insertion, action frequencies, incremental action EV, conditional range equity and measured convergence. Only supported, matching, converged heads-up postflop snapshots can override existing live suggestions. Preflop/multiway remain heuristic estimates. A budget-limited strategy stays study-only. The bet tree is explicitly restricted; this is not a full no-limit or guaranteed individual-hand optimality claim.
+
+Optimized app suite: **242 scheduled, 240 passed, two optional older original-image replays skipped, zero failures (55.92 seconds)**. Ten new permanent solver cases cover form/result validation, root money and relative order, live legal-action/minimum gating, missing/ambiguous inputs, changed money/ranges and reset, auto-update/reuse, late completion rejection, and actual native JSON solves (including exact +$3 all-in call EV and a typical ranged turn). Frozen completed-session and supplied-image regressions still pass. A separate temporary native render test passed at 1000×720 and 1900×1020; it was removed from delivered tests/source after visual inspection.
+
+Native helper analytical suite: **5 passed**, covering certain wins/losses, incremental call price, ties, raked split-pot call EV, duplicate cards, blocked/absent ranges, exact off-grid bet and player order. Upstream library unit suite: **37 passed, four upstream slow preset tests ignored, zero failures (5.80 seconds)**. The engine's only local source change makes three existing raw-pointer references explicit for modern Rust compatibility. Offline locked builds use vendored dependencies. Source, original notices, AGPL text, lockfile and rebuild script are included with the helper.
+
+Synthetic benchmark (illustrative broad ranges, $1 root pot/$3 effective, 10-second budget, 0.5%-pot target): river 50 iterations / ~0.006s / 0.378% gap; turn 60 iterations / ~0.253s / 0.485% gap; flop 25 iterations / ~10.98s / 4.958% gap using ~448 MiB compressed strategy storage. The last result correctly remains unconverged/study-only. Timings depend on ranges/tree/device and do not establish live capture latency or readiness within a wagering timer. The process has two CPU threads, bounded strategy storage and an external cancellation/wall deadline; auxiliary memory is additional.
+
+Validation used synthetic games, offscreen native views, previously supplied captures and the frozen retrospective log fixture. No new live browser/monitor/reader pixels, fresh HandTraces or wagers were accessed. Dashboard random-hand equity/deal counts and solver range strategy remain separate models. See [GTO guide](docs/GTO_SOLVER.md) for exact import/decision gates and limitations.
+
+## Prior release evidence
+
 # Live Card Reader 0.20.0 verification
 
 The completed-session audit found that all 37 confirmed-turn snapshots lacked a readable hero street commitment, no raised-pot range result completed, the recorded 25–29 BB stacks missed the deep first-in rule, and temporary missing controls changed an earlier free Check into a provisional Fold. This release addresses those distinct routes; it does not certify poker-optimal decisions.

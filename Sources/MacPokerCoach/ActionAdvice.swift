@@ -160,6 +160,7 @@ extension HandAnalysisModel {
             return ActionAdvice(title:"WAIT",reason:"Start screen sharing to read your current hole cards.",kind:nil,availability:.cards)
         }
         if hand.isReview { return ActionAdvice(title:"REVIEW",reason:"Only saved cards are available after your cards disappeared. What-if calculations continue; there is no live action for these saved cards.",kind:nil,basis:"SAVED CARDS",availability:.savedHand) }
+        if let solverAdvice { return solverAdvice }
         if automatic, actionControlsConfirmed, let table,
            let advice = ActionAdvice.immediate(hole:hand.hole.map(\.card),board:hand.board.map(\.card),table:table,confirmedSize:tableConfirmed,situation:effectiveSituation,position:effectivePosition) { return advice }
         if automatic, table?.controls != nil, !actionControlsConfirmed {

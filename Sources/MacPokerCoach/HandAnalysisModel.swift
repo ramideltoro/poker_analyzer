@@ -4,6 +4,7 @@ import PokerCore
 import TableRecognition
 
 @MainActor final class HandAnalysisModel: ObservableObject {
+    let solver:GTOSolverModel
     typealias CalculateResponse = @Sendable ([Card],[OpponentRange],@escaping @Sendable () -> Bool) throws -> EquityResult
     typealias Calculate = @Sendable ([Card],[Card],Int,@escaping @Sendable () -> Bool) throws -> EquityResult
     @Published var position: PokerPosition = .unknown { didSet { if !updating { refreshForecast(); refreshRaiseResponse() }; refreshDisplay() } }
@@ -93,7 +94,7 @@ import TableRecognition
 
     init(calculate: @escaping Calculate = { hole,board,opponents,cancelled in
         try EquityEngine.calculate(hole:hole,board:board,opponents:opponents,cancelled:cancelled)
-    },calculateResponse: @escaping CalculateResponse = { hole,ranges,cancelled in try RangeEquityEngine.calculate(hole:hole,ranges:ranges,cancelled:cancelled) }) { self.calculate = calculate; self.calculateResponse=calculateResponse }
+    },calculateResponse: @escaping CalculateResponse = { hole,ranges,cancelled in try RangeEquityEngine.calculate(hole:hole,ranges:ranges,cancelled:cancelled) },solver:GTOSolverModel? = nil) { self.solver=solver ?? GTOSolverModel(); self.calculate = calculate; self.calculateResponse=calculateResponse;self.solver.onChange = { [weak self] in self?.objectWillChange.send();self?.refreshDisplay() } }
 
     func setAutomatic(_ enabled: Bool) {
         guard enabled != automatic else { return }
@@ -158,10 +159,10 @@ import TableRecognition
         } else if hand==nil {
             positionStabilizer.reset(); recognizedPosition=nil; recognizedBigBlind=nil
         }
-        refreshAnalysis(); refreshForecast(isObservation:true); refreshRaiseResponse()
+        refreshAnalysis(); refreshForecast(isObservation:true); refreshRaiseResponse();refreshSolverSource()
     }
     /// Stop, stale capture or permission loss must remove even presentation-only history.
-    func reset() { reading=CardReadiness(); update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil; contextHole = nil; positionStabilizer.reset(); recognizedPosition=nil; recognizedBigBlind=nil; position = .unknown; preflopSituation = .unknown; bigBlindText = "" }
+    func reset() { solver.captureStopped();reading=CardReadiness(); update(nil); display = AnalysisDisplay(); details = nil; detailsKey = nil; contextHole = nil; positionStabilizer.reset(); recognizedPosition=nil; recognizedBigBlind=nil; position = .unknown; preflopSituation = .unknown; bigBlindText = "" }
     private func validOpponentCount(_ table: TableObservation) -> Bool {
         table.seats.filter(\.isHero).count == 1 && (2...9).contains(table.seats.count) &&
         table.seats.allSatisfy { $0.activity != .unknown } && (1...8).contains(table.activeOpponents.count)

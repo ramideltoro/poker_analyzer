@@ -9,6 +9,7 @@ struct CallThresholdPanel: View {
     private func money(_ v: Double?) -> String { v.map { String(format:"$%.2f",$0) } ?? "—" }
     private var price: DecisionPrice? {
         if analysis.decisionAdvice.retained { return nil }
+        if analysis.decisionAdvice.basis=="GTO SOLVER",let result=analysis.solver.liveResult,let source=analysis.solver.source { return try? DecisionPrice(equity:result.equity,pot:Double(source.pot)/100,call:Double(source.bet)/100) }
         if analysis.presentedAdvice.basis=="RAISE RESPONSE", let hand=analysis.currentHand, let table=analysis.responseTable,
            let q=analysis.raiseResponseResult?.equity,
            let request=RaiseResponseRequest.make(hole:hand.hole.map(\.card),table:table,context:analysis.preflopContext,evidence:analysis.preflopEvidence,preset:analysis.raiseRange,allowQuotedPrice:!analysis.isPlanning && analysis.actionControlsConfirmed && analysis.tableConfirmed) {
@@ -70,7 +71,7 @@ struct CallThresholdPanel: View {
                 Text(price.map { "Call price: \(money($0.call)) · minimum pot \(money($0.minimumPot.map { max(0,ceil($0*100-1e-9)/100) }))" } ?? "Waiting for current decision inputs")
                     .font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8).frame(height:14)
             }
-            Text(advice.retained ? "Earlier plan from confirmed actions; current reading incomplete. History, not a new action or live price." : analysis.positionSummary+" · "+(advice.basis=="RAISE RESPONSE" ? (analysis.responseUsesQuotedPrice ? "Range scenario from confirmed Call; street wagers unreadable." : "Range / realization scenario.") : advice.provisional ? "Provisional plan; dollar EV needs current amounts." : analysis.isPlanning ? analysis.forecast?.assumption ?? "Scanning continues." : "Reference strategy; future responses unknown."))
+            Text(advice.retained ? "Earlier plan from confirmed actions; current reading incomplete. History, not a new action or live price." : analysis.positionSummary+" · "+(advice.basis=="RAISE RESPONSE" ? (analysis.responseUsesQuotedPrice ? "Range scenario from confirmed Call; street wagers unreadable." : "Range / realization scenario.") : advice.provisional ? "Provisional plan; dollar EV needs current amounts." : analysis.isPlanning ? analysis.forecast?.assumption ?? "Scanning continues." : advice.basis=="GTO SOLVER" ? "Solver ranges, rake and action mix in GTO solver." : "Reference strategy; future responses unknown."))
                 .font(.system(size:8)).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.8).frame(height:12)
         }.padding(8).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).frame(height:height)
             .dashboardPanel().transaction { $0.animation = nil }

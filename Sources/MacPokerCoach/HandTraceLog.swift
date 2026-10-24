@@ -76,6 +76,14 @@ import TableRecognition
             "forecast_ev":forecast?.estimate.map { String($0.value) } ?? "unavailable",
             "live_ev":analysis.callEstimate.map { String($0.value) } ?? "unavailable"
         ]
+fields["solver_live_match"]=String(analysis.solver.liveResult != nil)
+fields["solver_gap_percent"]=analysis.solver.liveResult.map { String($0.gapPercent) } ?? "none"
+fields["solver_iterations"]=analysis.solver.liveResult.map { String($0.iterations) } ?? "0"
+if let request=analysis.solver.solvedRequest,analysis.solver.liveResult != nil {
+    fields["solver_oop_range"]=request.oopRange;fields["solver_ip_range"]=request.ipRange
+    fields["solver_rake_percent"]=String(request.rakePercent);fields["solver_rake_cap_cents"]=String(request.rakeCapCents)
+    fields["solver_tree"]="50% pot bets; pot raises; stack-capped all-ins; exact facing bet"
+}
         // Hand-local geometry IDs only. No opponent shown cards, persistent identity or raw OCR.
         let seats=(observed?.seats ?? []).map { s in
             ["id":String(s.id),"hero":String(s.isHero),"stack_cents":s.stackCents.map(String.init) ?? "unknown",
